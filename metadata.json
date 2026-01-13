@@ -1,0 +1,7 @@
+{
+  "name": "The Original_The Wandering Spoon 漫游勺",
+  "description": "A premium, bilingual weekly bento ordering system with inventory management and AI-powered personalized receipts.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
