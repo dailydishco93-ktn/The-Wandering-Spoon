@@ -81,7 +81,7 @@ export const getOrderStatus = async (orderId: string): Promise<string | null> =>
     }
 
     try {
-        const response = await fetch(`${SCRIPT_URL}?orderId=${orderId}`);
+        const response = await fetch(`${SCRIPT_URL}?action=check_status&orderId=${orderId}`);
         if (!response.ok) {
             return null;
         }
