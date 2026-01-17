@@ -136,6 +136,14 @@ export const ADD_ONS: AddOn[] = [
   }
 ];
 
+export const DAILY_DRINKS: Record<string, { title: string; titleZh: string }> = {
+  'Monday': { title: 'Nutmeg & Calamansi with Sour Plum', titleZh: '酸梅桔子豆蔻水' },
+  'Tuesday': { title: 'Lemongrass & Pandan', titleZh: '香兰香茅水' },
+  'Wednesday': { title: 'Winter Melon & Longan', titleZh: '冬瓜龙眼水' },
+  'Thursday': { title: 'Barley & Candied Winter Melon', titleZh: '冬瓜薏米水' },
+  'Friday': { title: 'Luo Han Guo with Longan', titleZh: '罗汉果龙眼水' }
+};
+
 export const TEXTS = {
   [Language.EN]: {
     addToCart: "Add to Order",
@@ -346,7 +354,6 @@ export const TEXTS = {
     verifyingStep1: "订单详情已汇总",
     verifyingStep2: "收据已发送给店主",
     verifyingStep3: "等待人工审批",
-
     contactHeader: "联系信息",
     whatsappLabel: "WhatsApp",
     emailLabel: "邮箱",
