@@ -1,39 +1,39 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactCrop, { centerCrop, makeAspectCrop, Crop, PixelCrop } from 'react-image-crop';
-import { 
-  MapPin, 
-  Clock, 
-  Upload, 
-  CheckCircle, 
-  ChefHat, 
-  UtensilsCrossed, 
-  Globe, 
-  Plus, 
-  Minus, 
-  ChevronDown, 
-  ChevronUp, 
-  Sparkles, 
-  X, 
-  MessageCircle, 
-  Send, 
-  Loader2, 
-  CupSoda, 
-  Apple, 
-  ShieldAlert, 
-  Copy, 
-  Share2, 
-  Edit, 
-  RotateCcw, 
-  RotateCw, 
-  Landmark, 
-  CreditCard, 
-  Timer, 
-  ShoppingBag, 
-  AlertTriangle, 
-  User, 
-  Truck, 
-  ArrowRight, 
-  Mail, 
+import {
+  MapPin,
+  Clock,
+  Upload,
+  CheckCircle,
+  ChefHat,
+  UtensilsCrossed,
+  Globe,
+  Plus,
+  Minus,
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
+  X,
+  MessageCircle,
+  Send,
+  Loader2,
+  CupSoda,
+  Apple,
+  ShieldAlert,
+  Copy,
+  Share2,
+  Edit,
+  RotateCcw,
+  RotateCw,
+  Landmark,
+  CreditCard,
+  Timer,
+  ShoppingBag,
+  AlertTriangle,
+  User,
+  Truck,
+  ArrowRight,
+  Mail,
   Hourglass,
   Heart,
   Flame,
@@ -41,11 +41,13 @@ import {
   Info,
   CalendarCheck,
   Package,
-  HandPlatter
+  HandPlatter,
+  BookOpen
 } from 'lucide-react';
-import { Language, MenuItem, AppStep, CustomerInfo, ChatMessage } from './types';
-import { MENU_ITEMS, ADD_ONS, THEME_INFO, TEXTS } from './constants';
-import { generateChefNote, getDishStory, getConciergeResponse, OrderedDishInfo, generateOwnerEmail } from './services/geminiService';
+import { Language, MenuItem, AppStep, CustomerInfo, AddOn } from './types';
+import { MENU_ITEMS as DEFAULT_MENU_ITEMS, ADD_ONS as DEFAULT_ADD_ONS, THEME_INFO as DEFAULT_THEME_INFO, TEXTS, PLACEHOLDER_IMAGE } from './constants';
+
+import { submitOrderToSheet, fetchMenuData } from './services/googleSheetsService';
 
 const DAY_ORDER: Record<string, number> = {
   'Monday': 0, '星期一': 0,
@@ -60,23 +62,42 @@ const App: React.FC = () => {
   const [lang, setLang] = useState<Language>(Language.EN);
   const [step, setStep] = useState<AppStep>(AppStep.MENU);
   const [showIntro, setShowIntro] = useState(true);
+
+  // Dynamic Data State
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(DEFAULT_MENU_ITEMS);
+  const [addOns, setAddOns] = useState<AddOn[]>(DEFAULT_ADD_ONS);
+  const [themeInfo, setThemeInfo] = useState(DEFAULT_THEME_INFO);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+
   const [inventory, setInventory] = useState<Record<string, number>>({});
   const [cart, setCart] = useState<Record<string, number>>({});
-  const [customer, setCustomer] = useState<CustomerInfo>({
-    name: '', phone: '', email: '', address: '', deliveryInstruction: ''
+  const [customer, setCustomer] = useState<CustomerInfo>(() => {
+    try {
+      const saved = localStorage.getItem('tws_customer_info');
+      return saved ? JSON.parse(saved) : {
+        name: '', phone: '', email: '', address: '', deliveryInstruction: ''
+      };
+    } catch (e) {
+      console.error("Failed to load customer info", e);
+      return {
+        name: '', phone: '', email: '', address: '', deliveryInstruction: ''
+      };
+    }
   });
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [timeLeft, setTimeLeft] = useState<number>(900);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
-  const [chefNote, setChefNote] = useState<{en: string, zh: string} | null>(null);
-  const [loadingAI, setLoadingAI] = useState(false);
+
   const [isCartExpanded, setIsCartExpanded] = useState(false);
   const [mapUrl, setMapUrl] = useState<string>('');
   const [mapZoom, setMapZoom] = useState(16);
   const [isLocating, setIsLocating] = useState(false);
   const [orderId, setOrderId] = useState<string>('');
   const [highlightedCartItem, setHighlightedCartItem] = useState<string | null>(null);
-  const [ownerEmailDraft, setOwnerEmailDraft] = useState<string>('');
+
+  // Story Modal State
+  const [selectedStory, setSelectedStory] = useState<{ title: string; content: string; image?: string } | null>(null);
+
 
   // Parallax Scroll State for Intro
   const [scrollY, setScrollY] = useState(0);
@@ -89,7 +110,7 @@ const App: React.FC = () => {
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
   const [copiedValue, setCopiedValue] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'bank' | 'tng'>('bank');
-  
+
   // Receipt Editor State
   const [isReceiptEditorOpen, setIsReceiptEditorOpen] = useState(false);
   const [editorSourceUrl, setEditorSourceUrl] = useState<string | null>(null);
@@ -102,17 +123,11 @@ const App: React.FC = () => {
   const [croppedPreviewUrl, setCroppedPreviewUrl] = useState<string | null>(null);
   const [croppedBlob, setCroppedBlob] = useState<Blob | null>(null);
 
-  // AI Storyteller State
-  const [activeStoryItem, setActiveStoryItem] = useState<MenuItem | null>(null);
-  const [itemStory, setItemStory] = useState<string>('');
-  const [loadingStory, setLoadingStory] = useState(false);
+  // Verification Error State
 
-  // AI Concierge State
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
-  const [chatInput, setChatInput] = useState('');
-  const [isChatLoading, setIsChatLoading] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+
+
+
   const totalRef = useRef<HTMLParagraphElement>(null);
 
   // Details Page State
@@ -131,8 +146,9 @@ const App: React.FC = () => {
     const currentDay = today === 0 ? 7 : today; // Map Sun to 7
     const currentHour = now.getHours();
 
-    // If it's Saturday or Sunday, we're in the pre-order period for the upcoming week.
-    if (currentDay >= 6) return true;
+    // If it's Friday, Saturday or Sunday, we're in the pre-order period for the upcoming week.
+    // (Since Friday's order cutoff was Thursday 8pm, 'Friday' here effectively means starting next week's cycle)
+    if (currentDay >= 5) return true;
 
     // Past days are unavailable
     if (currentDay > dayIndex) return false;
@@ -145,6 +161,11 @@ const App: React.FC = () => {
 
     return true;
   };
+
+  // Save customer info to local storage
+  useEffect(() => {
+    localStorage.setItem('tws_customer_info', JSON.stringify(customer));
+  }, [customer]);
 
   // Scroll to top on step change
   useEffect(() => {
@@ -162,12 +183,7 @@ const App: React.FC = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [showIntro]);
 
-  // Close concierge when leaving menu step
-  useEffect(() => {
-    if (step !== AppStep.MENU) {
-      setIsChatOpen(false);
-    }
-  }, [step]);
+
 
   // Validation Logic
   const validate = () => {
@@ -188,15 +204,66 @@ const App: React.FC = () => {
     setTouched(prev => ({ ...prev, [field]: true }));
   };
 
-  // Initialize Inventory
+  // Fetch Menu Data on Mount
+  useEffect(() => {
+    const loadData = async () => {
+      const data = await fetchMenuData();
+      console.log("DEBUG: Fetched Data:", JSON.stringify(data, null, 2)); // Debug logging - Stringified
+      if (data) {
+        if (data.theme && Object.keys(data.theme).length > 0) {
+          // Merge with default to ensure no missing keys if sheet is partial
+          setThemeInfo(prev => ({ ...prev, ...data.theme }));
+        }
+
+        if (data.menuItems && data.menuItems.length > 0) {
+          // Enrich menu items with dayIndex and fallback dayZh if missing from sheet
+          const enrichedItems = data.menuItems.map(item => {
+            // Find index from DAY_ORDER (0-based) and convert to 1-based dayIndex
+            // Use item.day as the primary key for lookup
+            const foundIndex = DAY_ORDER[item.day] !== undefined ? DAY_ORDER[item.day] + 1 : 1;
+
+            // Fallback for dayZh if it's empty or missing
+            let fallbackDayZh = item.dayZh;
+            if (!fallbackDayZh) {
+              const entries = Object.entries(DAY_ORDER);
+              const found = entries.find(([key, val]) => val === (foundIndex - 1) && key !== item.day);
+              fallbackDayZh = found ? found[0] : item.day;
+            }
+
+            // Fallback for story/storyZh from local constants if missing from sheet
+            const defaultItem = DEFAULT_MENU_ITEMS.find(d => d.id === item.id)
+              || DEFAULT_MENU_ITEMS.find(d => d.dayIndex === (foundIndex));
+            const story = item.story || defaultItem?.story;
+            const storyZh = item.storyZh || defaultItem?.storyZh;
+
+            return {
+              ...item,
+              dayIndex: item.dayIndex || foundIndex,
+              dayZh: fallbackDayZh,
+              story,
+              storyZh,
+              image: item.image || defaultItem?.image
+            };
+          });
+          setMenuItems(enrichedItems);
+        }
+
+        if (data.addOns && data.addOns.length > 0) setAddOns(data.addOns);
+      }
+      setIsDataLoaded(true);
+    };
+    loadData();
+  }, []);
+
+  // Initialize Inventory when menuItems changes
   useEffect(() => {
     const initialInv: Record<string, number> = {};
-    MENU_ITEMS.forEach(item => {
+    menuItems.forEach(item => {
       initialInv[item.id] = item.maxInventory;
     });
     setInventory(initialInv);
-  }, []);
-  
+  }, [menuItems]);
+
   // Cleanup receipt preview Object URLs
   useEffect(() => {
     return () => {
@@ -217,10 +284,7 @@ const App: React.FC = () => {
     }
   }, [customer.address, customer.coordinates, mapZoom]);
 
-  // Scroll Chat to bottom
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatHistory]);
+
 
   // Timer Logic
   useEffect(() => {
@@ -235,7 +299,7 @@ const App: React.FC = () => {
     }
     return () => clearInterval(timer);
   }, [step, timeLeft, lang, showCancelModal]);
-  
+
   const toggleLang = () => {
     setLang(prev => prev === Language.EN ? Language.ZH : Language.EN);
   };
@@ -248,10 +312,10 @@ const App: React.FC = () => {
       const current = prev[id] || 0;
       const next = Math.max(0, Math.min(current + delta, max));
       const newCart = { ...prev, [id]: next };
-      
-      const menuItem = MENU_ITEMS.find(m => m.id === id);
+
+      const menuItem = menuItems.find(m => m.id === id);
       if (menuItem && next === 0) {
-        ADD_ONS.forEach(addon => {
+        addOns.forEach(addon => {
           delete newCart[`${id}_${addon.id}`];
         });
       }
@@ -262,41 +326,65 @@ const App: React.FC = () => {
   };
 
   const getItemDetails = (id: string) => {
-    const main = MENU_ITEMS.find(m => m.id === id);
+    const main = menuItems.find(m => String(m.id) === String(id));
     if (main) return { ...main, itemType: 'main' as const };
 
     const parts = id.split('_');
     if (parts.length > 1) {
       const addonId = parts[parts.length - 1];
       const itemId = parts.slice(0, -1).join('_');
-      
-      const addon = ADD_ONS.find(a => a.id === addonId);
-      const parentItem = MENU_ITEMS.find(m => m.id === itemId);
-      
+
+      const addon = addOns.find(a => String(a.id) === String(addonId));
+      const parentItem = menuItems.find(m => String(m.id) === String(itemId));
+
       if (addon && parentItem) {
-        return { 
-          ...addon, 
+        return {
+          ...addon,
           itemType: 'addon' as const,
           parentTitle: lang === Language.EN ? parentItem.title : parentItem.titleZh,
           parentDay: lang === Language.EN ? parentItem.day : parentItem.dayZh,
-          parentDayEn: parentItem.day 
+          parentDayEn: parentItem.day
         };
       }
     }
-    
+
     return null;
   };
 
-  const calculateTotal = () => {
-    let totalValue = 0;
+  const calculateOrderSummary = () => {
+    let subtotal = 0;
+    let mainDishCount = 0;
+    const daysWithMainDish = new Set<string>();
+
     Object.entries(cart).forEach(([id, q]) => {
       const details = getItemDetails(id);
-      if (details) totalValue += details.price * Number(q);
+      if (details) {
+        subtotal += details.price * Number(q);
+        if (details.itemType === 'main') {
+          mainDishCount += Number(q);
+          daysWithMainDish.add(details.day); // 'Monday', etc.
+        }
+      }
     });
-    return totalValue;
+
+    // Discount Rules:
+    // 1. At least 5 main dishes total
+    // 2. Or 1 order on each day (Mon-Fri)
+    const allDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const hasAllDays = allDays.every(day => daysWithMainDish.has(day));
+
+    // Check if eligible
+    const isEligible = mainDishCount >= 5 || hasAllDays;
+
+    // Rate from sheet (e.g. 0.1 for 10%)
+    const rate = themeInfo.discountRate || 0;
+    const discount = isEligible ? subtotal * rate : 0;
+    const total = subtotal - discount;
+
+    return { subtotal, discount, total, isEligible, rate };
   };
 
-  const total = calculateTotal();
+  const { subtotal, discount, total, isEligible: hasDiscount, rate: discountRate } = calculateOrderSummary();
 
   useEffect(() => {
     if (totalRef.current && total > 0) {
@@ -308,27 +396,7 @@ const App: React.FC = () => {
     }
   }, [total]);
 
-  const handleOpenStory = async (item: MenuItem) => {
-    setActiveStoryItem(item);
-    setLoadingStory(true);
-    setItemStory('');
-    const story = await getDishStory(item, lang);
-    setItemStory(story);
-    setLoadingStory(false);
-  };
 
-  const handleSendMessage = async () => {
-    if (!chatInput.trim()) return;
-    const userMsg: ChatMessage = { role: 'user', text: chatInput };
-    setChatHistory(prev => [...prev, userMsg]);
-    setChatInput('');
-    setIsChatLoading(true);
-
-    const response = await getConciergeResponse(chatInput, chatHistory, MENU_ITEMS, lang);
-    const modelMsg: ChatMessage = { role: 'model', text: response };
-    setChatHistory(prev => [...prev, modelMsg]);
-    setIsChatLoading(false);
-  };
 
   const handleLocate = () => {
     if (navigator.geolocation) {
@@ -343,8 +411,8 @@ const App: React.FC = () => {
             if (res.ok) {
               const data = await res.json();
               if (data.display_name) {
-                setCustomer(prev => ({ 
-                  ...prev, 
+                setCustomer(prev => ({
+                  ...prev,
                   address: data.display_name,
                   coordinates: { lat, lng }
                 }));
@@ -354,9 +422,9 @@ const App: React.FC = () => {
             } else {
               setCustomer(prev => ({ ...prev, coordinates: { lat, lng }, address: `${lat.toFixed(6)}, ${lng.toFixed(6)}` }));
             }
-            setMapZoom(18); 
-          } catch (e) { 
-            console.error(e); 
+            setMapZoom(18);
+          } catch (e) {
+            console.error(e);
             setCustomer(prev => ({ ...prev, coordinates: { lat, lng }, address: `${lat.toFixed(6)}, ${lng.toFixed(6)}` }));
             setMapZoom(18);
           } finally {
@@ -379,7 +447,7 @@ const App: React.FC = () => {
     if (Object.keys(currentErrors).length > 0) {
       const errorFields: (keyof CustomerInfo)[] = ['name', 'phone', 'email', 'address', 'deliveryInstruction'];
       const firstErrorField = errorFields.find(field => currentErrors[field]);
-      
+
       if (firstErrorField) {
         const refs: Record<string, React.RefObject<any>> = {
           name: nameRef, phone: phoneRef, email: emailRef, address: addressRef, deliveryInstruction: deliveryInstructionRef
@@ -395,22 +463,27 @@ const App: React.FC = () => {
 
   const onImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const { width, height } = e.currentTarget;
-    const cropValue = centerCrop(
-      makeAspectCrop(
-        {
-          unit: '%',
-          width: 80,
-          height: 80
-        },
-        undefined, 
-        width,
-        height
-      ),
-      width,
-      height
-    );
-    setCrop(cropValue);
-    setCompletedCrop(cropValue as PixelCrop);
+
+    // 1. Set the visual crop to cover the whole image (using percentages for responsiveness)
+    const initialCrop: Crop = {
+      unit: '%',
+      width: 100,
+      height: 100,
+      x: 0,
+      y: 0
+    };
+    setCrop(initialCrop);
+
+    // 2. Set the data crop to the exact pixel dimensions of the displayed image
+    // This ensures handlePreviewCrop has valid pixel data immediately without user interaction.
+    const initialPixelCrop: PixelCrop = {
+      unit: 'px',
+      width: width,
+      height: height,
+      x: 0,
+      y: 0
+    };
+    setCompletedCrop(initialPixelCrop);
   };
 
   const openEditor = (file: File) => {
@@ -428,7 +501,7 @@ const App: React.FC = () => {
     if (!file) return;
     openEditor(file);
   };
-  
+
   const handleEditReceipt = () => {
     if (!receiptFile) return;
     openEditor(receiptFile);
@@ -442,7 +515,7 @@ const App: React.FC = () => {
     const canvas = document.createElement("canvas");
     const scaleX = image.naturalWidth / image.width;
     const scaleY = image.naturalHeight / image.height;
-    
+
     const cropWidth = completedCrop.width * scaleX;
     const cropHeight = completedCrop.height * scaleY;
 
@@ -453,13 +526,13 @@ const App: React.FC = () => {
       canvas.width = cropWidth;
       canvas.height = cropHeight;
     }
-    
+
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    
+
     ctx.translate(canvas.width / 2, canvas.height / 2);
     ctx.rotate(editorRotation * Math.PI / 180);
-    
+
     ctx.drawImage(
       image,
       completedCrop.x * scaleX,
@@ -471,7 +544,7 @@ const App: React.FC = () => {
       cropWidth,
       cropHeight
     );
-    
+
     canvas.toBlob((blob) => {
       if (blob) {
         setCroppedBlob(blob);
@@ -481,7 +554,7 @@ const App: React.FC = () => {
       }
     }, originalFileForEditing.type, 0.9);
   };
-  
+
   const handleRecrop = () => {
     if (croppedPreviewUrl) {
       URL.revokeObjectURL(croppedPreviewUrl);
@@ -499,13 +572,13 @@ const App: React.FC = () => {
     setReceiptFile(newFile);
     if (receiptPreview) URL.revokeObjectURL(receiptPreview);
     setReceiptPreview(URL.createObjectURL(newFile));
-    
+
     handleCancelReceiptEdit();
   };
 
   const handleCancelReceiptEdit = () => {
-    if(editorSourceUrl) URL.revokeObjectURL(editorSourceUrl);
-    if(croppedPreviewUrl) URL.revokeObjectURL(croppedPreviewUrl);
+    if (editorSourceUrl) URL.revokeObjectURL(editorSourceUrl);
+    if (croppedPreviewUrl) URL.revokeObjectURL(croppedPreviewUrl);
     setIsReceiptEditorOpen(false);
     setEditorSourceUrl(null);
     setOriginalFileForEditing(null);
@@ -520,8 +593,8 @@ const App: React.FC = () => {
     setReceiptFile(null);
     setOriginalFileForEditing(null);
     if (receiptPreview) {
-        URL.revokeObjectURL(receiptPreview);
-        setReceiptPreview(null);
+      URL.revokeObjectURL(receiptPreview);
+      setReceiptPreview(null);
     }
     const input = document.getElementById('receipt-upload') as HTMLInputElement;
     if (input) input.value = '';
@@ -536,11 +609,11 @@ const App: React.FC = () => {
     setTouched({});
     setTimeLeft(900);
     clearReceipt();
-    setChefNote(null);
+
     setOrderId('');
     setIsCartExpanded(false);
     setShowCancelModal(false);
-    setOwnerEmailDraft('');
+
   };
 
   const handleCopy = (text: string) => {
@@ -549,10 +622,10 @@ const App: React.FC = () => {
       setTimeout(() => setCopiedValue(null), 2000);
     });
   };
-  
+
   const handleShareOrder = () => {
-    const itemsList = getGroupedCart().map(group => 
-      `${group.dayLabel}:\n` + group.items.map(item => 
+    const itemsList = getGroupedCart().map(group =>
+      `${group.dayLabel}:\n` + group.items.map(item =>
         `  - ${lang === Language.EN ? item.details.title : item.details.titleZh} x${item.q}`
       ).join('\n')
     ).join('\n\n');
@@ -580,49 +653,55 @@ ${shareT.shareThanks}
 
   const handlePaymentSubmit = async () => {
     if (!receiptFile) return alert(t.noFile);
-    setLoadingAI(true);
-    
+
     const newOrderId = `WS${Math.floor(100000 + Math.random() * 900000)}`;
     setOrderId(newOrderId);
-    
+
     // 1. Extract Order Summary for Email
-    const orderSummaryStr = getGroupedCart().map(group => 
-      `${group.dayLabel}: ` + group.items.map(item => 
+    const orderSummaryStr = getGroupedCart().map(group =>
+      `${group.dayLabel}: ` + group.items.map(item =>
         `${lang === Language.EN ? item.details.title : item.details.titleZh} x${item.q}`
       ).join(', ')
     ).join(' | ');
 
-    // 2. Generate Chef's Note
-    const orderedMainDishes: OrderedDishInfo[] = Object.entries(cart)
-      .map(([id, q]) => {
-        const details = getItemDetails(id);
-        if (details && details.itemType === 'main') {
-          return {
-            title: details.title,
-            titleZh: details.titleZh,
-            description: details.description,
-            descriptionZh: details.descriptionZh
+    // 2. Submit to Google Sheets (Fire and Forget)
+    let receiptBase64 = '';
+
+    try {
+      if (receiptFile) {
+        receiptBase64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            // Remove data:image/jpeg;base64, prefix
+            const base64 = result.split(',')[1];
+            resolve(base64);
           };
-        }
-        return null;
-      })
-      .filter((item): item is OrderedDishInfo => item !== null);
-    
-    const note = await generateChefNote(customer, orderedMainDishes);
-    setChefNote(note);
+          reader.onerror = reject;
+          reader.readAsDataURL(receiptFile);
+        });
+      }
+    } catch (e) {
+      console.error("Error converting receipt to base64", e);
+    }
 
-    // 3. Draft Owner Verification Email
-    const emailDraft = await generateOwnerEmail(customer, orderSummaryStr, newOrderId);
-    setOwnerEmailDraft(emailDraft);
-    
-    // Transition to VERIFYING
+    const orderData = {
+      orderId: newOrderId,
+      customer: customer,
+      paymentMethod: paymentMethod,
+      items: orderSummaryStr,
+      total: total,
+      chefNote: null,
+      receiptBase64: receiptBase64,
+      receiptMimeType: receiptFile?.type || 'image/jpeg'
+    };
+    submitOrderToSheet(orderData);
+
+    // Transition to VERIFYING state instead of directly to CONFIRMATION
     setStep(AppStep.VERIFYING);
-    setLoadingAI(false);
   };
 
-  const handleManualConfirmByAdmin = () => {
-    setStep(AppStep.CONFIRMATION);
-  };
+
 
   const handleBackFromPayment = () => {
     setCancelModalType('manual');
@@ -638,7 +717,7 @@ ${shareT.shareThanks}
   const renderHeader = () => (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md shadow-sm border-b border-brand-parchment">
       <div className="max-w-3xl mx-auto px-4 py-3 flex justify-between items-center">
-        <button 
+        <button
           onClick={() => setShowIntro(true)}
           className="flex items-center gap-2 group text-left outline-none transition-all"
         >
@@ -656,7 +735,7 @@ ${shareT.shareThanks}
 
   const getGroupedCart = () => {
     const groups: Record<string, { dayLabel: string, items: any[] }> = {};
-    
+
     Object.entries(cart).forEach(([id, q]) => {
       const details = getItemDetails(id);
       if (!details) return;
@@ -686,14 +765,14 @@ ${shareT.shareThanks}
     <div className="fixed inset-0 z-[100] bg-brand-cream overflow-y-auto animate-in fade-in duration-500 custom-scrollbar">
       {/* Top Bar for Language Toggle & Close */}
       <div className="fixed top-0 left-0 right-0 z-[110] px-6 py-4 flex justify-between items-center pointer-events-none">
-        <button 
-          onClick={toggleLang} 
+        <button
+          onClick={toggleLang}
           className="pointer-events-auto flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-md rounded-full shadow-lg border border-brand-parchment/50 text-brand-brown text-sm font-black hover:bg-white transition-all active:scale-95"
         >
           <Globe size={16} className="text-brand-red" />
           <span>{lang}</span>
         </button>
-        <button 
+        <button
           onClick={() => setShowIntro(false)}
           className="pointer-events-auto p-4 bg-white/90 backdrop-blur-md rounded-full shadow-lg hover:bg-white active:scale-90 transition-all text-brand-brown border border-brand-parchment/50"
         >
@@ -703,9 +782,9 @@ ${shareT.shareThanks}
 
       {/* Hero Section */}
       <div className="relative h-[55vh] w-full overflow-hidden">
-        <div 
+        <div
           className="absolute inset-0 w-full h-[120%] -top-10"
-          style={{ 
+          style={{
             transform: `translateY(${scrollY * 0.1}px)`,
             backgroundImage: `url('https://storage.googleapis.com/genai-content-generation-output/05a06cc6-9a29-4509-906b-b453e0078864/input_file_1.png')`,
             backgroundSize: 'cover',
@@ -714,190 +793,190 @@ ${shareT.shareThanks}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-brand-cream via-brand-brown/20 to-transparent"></div>
         <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center pt-12">
-            <h1 className="text-5xl md:text-8xl font-pacifico drop-shadow-2xl mb-3 animate-in slide-in-from-bottom duration-700 select-none">
-               {lang === Language.EN ? (
-                 <>
-                   <span className="text-brand-red">The</span>{" "}
-                   <span className="text-brand-green">Wandering</span>{" "}
-                   <span className="text-brand-red">Spoon</span>
-                 </>
-               ) : "漫游勺"}
-            </h1>
-            <h2 className="text-white text-lg sm:text-2xl md:text-4xl font-fredoka font-bold whitespace-nowrap drop-shadow-xl animate-in slide-in-from-bottom duration-1000 delay-200">
-               {lang === Language.EN ? "A New Flavour Journey Every Week" : "每周开启全新的味蕾之旅"}
-            </h2>
+          <h1 className="text-5xl md:text-8xl font-pacifico drop-shadow-2xl mb-3 animate-in slide-in-from-bottom duration-700 select-none">
+            {lang === Language.EN ? (
+              <>
+                <span className="text-brand-red">The</span>{" "}
+                <span className="text-brand-green">Wandering</span>{" "}
+                <span className="text-brand-red">Spoon</span>
+              </>
+            ) : "漫游勺"}
+          </h1>
+          <h2 className="text-white text-lg sm:text-2xl md:text-4xl font-fredoka font-bold whitespace-nowrap drop-shadow-xl animate-in slide-in-from-bottom duration-1000 delay-200">
+            {lang === Language.EN ? "A New Flavour Journey Every Week" : "每周开启全新的味蕾之旅"}
+          </h2>
         </div>
       </div>
 
       {/* Dashboard Transition */}
       <div className="max-w-6xl mx-auto px-6 relative z-10 -mt-16 pb-24">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          
+
           {/* Card: Brand Narrative */}
           <div className="lg:col-span-8 bg-white rounded-[3rem] p-10 shadow-xl border border-brand-parchment/50">
-             <div className="inline-flex items-center gap-3 px-4 py-2 bg-brand-red/5 rounded-full border border-brand-red/10 text-brand-red text-[10px] font-black uppercase tracking-[0.2em] mb-8">
-               <ChefHat size={14} />
-               <span>{lang === Language.EN ? "Our Story" : "品牌故事"}</span>
-             </div>
-             <h3 className="text-3xl md:text-5xl font-serif text-brand-brown leading-tight mb-8">
-                {lang === Language.EN ? "Kuantan's First Thematic Bento Kitchen" : "关丹首家主题便当厨房"}
-             </h3>
-             <div className="space-y-6 text-stone-600 text-lg md:text-xl leading-relaxed font-merriweather italic border-l-4 border-brand-red/20 pl-8">
-                <p className="first-letter:text-6xl first-letter:font-serif first-letter:text-brand-red first-letter:mr-4 first-letter:float-left first-letter:leading-none">
-                  {lang === Language.EN 
-                    ? "We are a premium home kitchen in Kuantan dedicated to crafting meals that are more than just fuel—they are mini getaways from the everyday."
-                    : "我们是关丹的一家高端私房厨房，致力于打造不仅仅是能量补充、更是心灵寄托的餐点—它们是平凡日常中的一场微旅行。"}
-                </p>
-                <p>
-                  {lang === Language.EN
-                    ? "From heritage kitchens to modern streets, our weekly menu are released every Saturday so you don't have to eat the same thing twice. We believe lunch should be an escape from the mundane."
-                    : "从传统厨房到现代街头，我们的每周菜单都会在周六发布，让您永远不会吃到重复的美味。我们相信午餐应该是从平凡中逃离的一次享受。"}
-                </p>
-             </div>
+            <div className="inline-flex items-center gap-3 px-4 py-2 bg-brand-red/5 rounded-full border border-brand-red/10 text-brand-red text-[10px] font-black uppercase tracking-[0.2em] mb-8">
+              <ChefHat size={14} />
+              <span>{lang === Language.EN ? "Our Story" : "品牌故事"}</span>
+            </div>
+            <h3 className="text-3xl md:text-5xl font-serif text-brand-brown leading-tight mb-8">
+              {lang === Language.EN ? "Kuantan's First Thematic Bento Kitchen" : "关丹首家主题便当厨房"}
+            </h3>
+            <div className="space-y-6 text-stone-600 text-lg md:text-xl leading-relaxed font-merriweather italic border-l-4 border-brand-red/20 pl-8">
+              <p className="first-letter:text-6xl first-letter:font-serif first-letter:text-brand-red first-letter:mr-4 first-letter:float-left first-letter:leading-none">
+                {lang === Language.EN
+                  ? "We are a premium home kitchen in Kuantan dedicated to crafting meals that are more than just fuel—they are mini getaways from the everyday."
+                  : "我们是关丹的一家高端私房厨房，致力于打造不仅仅是能量补充、更是心灵寄托的餐点—它们是平凡日常中的一场微旅行。"}
+              </p>
+              <p>
+                {lang === Language.EN
+                  ? "From heritage kitchens to modern streets, our weekly menu are released every Saturday so you don't have to eat the same thing twice. We believe lunch should be an escape from the mundane."
+                  : "从传统厨房到现代街头，我们的每周菜单都会在周六发布，让您永远不会吃到重复的美味。我们相信午餐应该是从平凡中逃离的一次享受。"}
+              </p>
+            </div>
           </div>
 
           {/* Card: The Promise */}
           <div className="lg:col-span-4 bg-white rounded-[3rem] p-10 shadow-xl border border-brand-parchment/50">
-             <div className="space-y-8 h-full flex flex-col justify-center">
-                <h3 className="text-4xl font-serif text-brand-brown mb-2">{lang === Language.EN ? "The Commitment" : "核心承诺"}</h3>
-                <div className="space-y-6">
-                  <div className="flex items-center gap-5">
-                    <div className="w-12 h-12 bg-brand-red/10 rounded-2xl flex items-center justify-center text-brand-red"><Heart size={24} /></div>
-                    <div>
-                      <p className="font-bold text-sm uppercase tracking-widest text-brand-brown">{lang === Language.EN ? "Zero Shortcuts" : "拒绝捷径"}</p>
-                      <p className="text-stone-500 text-xs">{lang === Language.EN ? "No MSG overload, just honest ingredients." : "拒绝过量味精，只用诚意食材。"}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-5">
-                    <div className="w-12 h-12 bg-brand-green/10 rounded-2xl flex items-center justify-center text-brand-green"><Flame size={24} /></div>
-                    <div>
-                      <p className="font-bold text-sm uppercase tracking-widest text-brand-brown">{lang === Language.EN ? "Piping Hot" : "极致新鲜"}</p>
-                      <p className="text-stone-500 text-xs">{lang === Language.EN ? "Small batch cooking for peak quality." : "小班制制作，确保每一口都新鲜。"}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-5">
-                    <div className="w-12 h-12 bg-brand-parchment/30 rounded-2xl flex items-center justify-center text-brand-brown"><Sparkles size={24} /></div>
-                    <div>
-                      <p className="font-bold text-sm uppercase tracking-widest text-brand-brown">{lang === Language.EN ? "Weekly Themes" : "每周主题"}</p>
-                      <p className="text-stone-500 text-xs">{lang === Language.EN ? "A changing culinary landscape every week." : "每周更新主题，开启无尽美味之旅。"}</p>
-                    </div>
+            <div className="space-y-8 h-full flex flex-col justify-center">
+              <h3 className="text-4xl font-serif text-brand-brown mb-2">{lang === Language.EN ? "The Commitment" : "核心承诺"}</h3>
+              <div className="space-y-6">
+                <div className="flex items-center gap-5">
+                  <div className="w-12 h-12 bg-brand-red/10 rounded-2xl flex items-center justify-center text-brand-red"><Heart size={24} /></div>
+                  <div>
+                    <p className="font-bold text-sm uppercase tracking-widest text-brand-brown">{lang === Language.EN ? "Zero Shortcuts" : "拒绝捷径"}</p>
+                    <p className="text-stone-500 text-xs">{lang === Language.EN ? "No MSG overload, just honest ingredients." : "拒绝过量味精，只用诚意食材。"}</p>
                   </div>
                 </div>
-             </div>
+                <div className="flex items-center gap-5">
+                  <div className="w-12 h-12 bg-brand-green/10 rounded-2xl flex items-center justify-center text-brand-green"><Flame size={24} /></div>
+                  <div>
+                    <p className="font-bold text-sm uppercase tracking-widest text-brand-brown">{lang === Language.EN ? "Piping Hot" : "极致新鲜"}</p>
+                    <p className="text-stone-500 text-xs">{lang === Language.EN ? "Small batch cooking for peak quality." : "小班制制作，确保每一口都新鲜。"}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-5">
+                  <div className="w-12 h-12 bg-brand-parchment/30 rounded-2xl flex items-center justify-center text-brand-brown"><Sparkles size={24} /></div>
+                  <div>
+                    <p className="font-bold text-sm uppercase tracking-widest text-brand-brown">{lang === Language.EN ? "Weekly Themes" : "每周主题"}</p>
+                    <p className="text-stone-500 text-xs">{lang === Language.EN ? "A changing culinary landscape every week." : "每周更新主题，开启无尽美味之旅。"}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Card: Order Process (Stepper) */}
           <div className="lg:col-span-12 bg-white rounded-[3rem] p-10 shadow-xl border border-brand-parchment/50">
-             <div className="flex flex-col lg:flex-row items-start justify-between gap-12">
-                <div className="lg:w-1/4 text-center lg:text-left">
-                  <h3 className="text-4xl font-serif text-brand-brown mb-4">{lang === Language.EN ? "How to Order" : "如何订餐"}</h3>
-                  <p className="text-stone-500 text-sm leading-relaxed font-serif">
-                    {lang === Language.EN 
-                      ? "We operate exclusively on a pre-order basis to ensure zero food waste and peak freshness for every bento."
-                      : "我们全采用预购制，以确保零浪费并保证每份便当在送达时处于最佳新鲜状态。"}
-                  </p>
-                </div>
-                <div className="lg:w-3/4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                   {[
-                     { 
-                       step: "1", 
-                       labelEn: "Discover", 
-                       labelZh: "探索", 
-                       icon: <CalendarCheck size={24}/>,
-                       descEn: "Every Saturday, we release a new thematic menu. Explore our selection for the week.",
-                       descZh: "每周六发布新主题菜单。提前探索下周我们精心挑选的高端便当系列。"
-                     },
-                     { 
-                       step: "2", 
-                       labelEn: "Pre-Order", 
-                       labelZh: "预订", 
-                       icon: <Clock size={24}/>,
-                       descEn: "Order by 8:00 PM the night before delivery to secure your slot.",
-                       descZh: "请在配送日前一天晚上 8:00 前完成下单，锁定美味席位。"
-                     },
-                     { 
-                       step: "3", 
-                       labelEn: "Kitchen", 
-                       labelZh: "筹备", 
-                       icon: <ChefHat size={24}/>,
-                       descEn: "Our chef prepares your meal from scratch using fresh ingredients on delivery day.",
-                       descZh: "主厨在配送日当天从零开始为您现做。坚持使用当日新鲜食材。"
-                     },
-                     { 
-                       step: "4", 
-                       labelEn: "Delivery", 
-                       labelZh: "配送", 
-                       icon: <Package size={24}/>,
-                       descEn: "Expect your bento between 11:00 AM and 1:00 PM straight to your doorstep.",
-                       descZh: "餐点将于上午 11:00 至下午 1:00 之间准时送达。家门或办公室直达。"
-                     }
-                   ].map((item, i) => (
-                     <div key={i} className="flex flex-col items-center lg:items-start text-center lg:text-left gap-3 group bg-brand-parchment/10 p-4 rounded-2xl hover:bg-brand-parchment/20 transition-all">
-                        <div className="w-12 h-12 rounded-full bg-white border-2 border-brand-parchment flex items-center justify-center text-brand-red shadow-sm group-hover:scale-110 group-hover:bg-brand-red group-hover:text-white group-hover:border-brand-red transition-all">
-                          {item.icon}
-                        </div>
-                        <div>
-                          <p className="font-black text-xs uppercase tracking-[0.2em] text-brand-brown mb-1.5">
-                            {lang === Language.EN ? item.labelEn : item.labelZh}
-                          </p>
-                          <p className="text-[10px] leading-relaxed text-stone-500 font-sans">
-                            {lang === Language.EN ? item.descEn : item.descZh}
-                          </p>
-                        </div>
-                     </div>
-                   ))}
-                </div>
-             </div>
+            <div className="flex flex-col lg:flex-row items-start justify-between gap-12">
+              <div className="lg:w-1/4 text-center lg:text-left">
+                <h3 className="text-4xl font-serif text-brand-brown mb-4">{lang === Language.EN ? "How to Order" : "如何订餐"}</h3>
+                <p className="text-stone-500 text-sm leading-relaxed font-serif">
+                  {lang === Language.EN
+                    ? "We operate exclusively on a pre-order basis to ensure zero food waste and peak freshness for every bento."
+                    : "我们全采用预购制，以确保零浪费并保证每份便当在送达时处于最佳新鲜状态。"}
+                </p>
+              </div>
+              <div className="lg:w-3/4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                  {
+                    step: "1",
+                    labelEn: "Discover",
+                    labelZh: "探索",
+                    icon: <CalendarCheck size={24} />,
+                    descEn: "Every Saturday, we release a new thematic menu. Explore our selection for the week.",
+                    descZh: "每周六发布新主题菜单。提前探索下周我们精心挑选的高端便当系列。"
+                  },
+                  {
+                    step: "2",
+                    labelEn: "Pre-Order",
+                    labelZh: "预订",
+                    icon: <Clock size={24} />,
+                    descEn: "Order by 8:00 PM the night before delivery to secure your slot.",
+                    descZh: "请在配送日前一天晚上 8:00 前完成下单，锁定美味席位。"
+                  },
+                  {
+                    step: "3",
+                    labelEn: "Kitchen",
+                    labelZh: "筹备",
+                    icon: <ChefHat size={24} />,
+                    descEn: "Our chef prepares your meal from scratch using fresh ingredients on delivery day.",
+                    descZh: "主厨在配送日当天从零开始为您现做。坚持使用当日新鲜食材。"
+                  },
+                  {
+                    step: "4",
+                    labelEn: "Delivery",
+                    labelZh: "配送",
+                    icon: <Package size={24} />,
+                    descEn: "Expect your bento between 11:00 AM and 1:00 PM straight to your doorstep.",
+                    descZh: "餐点将于上午 11:00 至下午 1:00 之间准时送达。家门或办公室直达。"
+                  }
+                ].map((item, i) => (
+                  <div key={i} className="flex flex-col items-center lg:items-start text-center lg:text-left gap-3 group bg-brand-parchment/10 p-4 rounded-2xl hover:bg-brand-parchment/20 transition-all">
+                    <div className="w-12 h-12 rounded-full bg-white border-2 border-brand-parchment flex items-center justify-center text-brand-red shadow-sm group-hover:scale-110 group-hover:bg-brand-red group-hover:text-white group-hover:border-brand-red transition-all">
+                      {item.icon}
+                    </div>
+                    <div>
+                      <p className="font-black text-xs uppercase tracking-[0.2em] text-brand-brown mb-1.5">
+                        {lang === Language.EN ? item.labelEn : item.labelZh}
+                      </p>
+                      <p className="text-[10px] leading-relaxed text-stone-500 font-sans">
+                        {lang === Language.EN ? item.descEn : item.descZh}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Row 3: Delivery Areas and Contact Info */}
           <div className="lg:col-span-6 bg-white rounded-[3rem] p-10 shadow-xl border border-brand-parchment/50 text-center flex flex-col justify-center">
-             <h3 className="text-3xl font-serif text-brand-brown mb-4">{lang === Language.EN ? "Delivery Areas" : "配送区域"}</h3>
-             <div className="flex flex-wrap justify-center gap-2">
-                {["Kuantan Town", "Air Putih", "Alor Akar", "Indera Mahkota"].map((area, i) => (
-                  <span key={i} className="px-3 py-1.5 bg-brand-cream rounded-full border border-brand-parchment text-brand-brown font-black text-xs uppercase tracking-[0.2em] shadow-sm hover:border-brand-red hover:text-brand-red transition-all cursor-default">
-                    {area}
-                  </span>
-                ))}
-             </div>
+            <h3 className="text-3xl font-serif text-brand-brown mb-4">{lang === Language.EN ? "Delivery Areas" : "配送区域"}</h3>
+            <div className="flex flex-wrap justify-center gap-2">
+              {["Kuantan Town", "Air Putih", "Alor Akar", "Indera Mahkota", "Semambu", "Sekilau"].map((area, i) => (
+                <span key={i} className="px-3 py-1.5 bg-brand-cream rounded-full border border-brand-parchment text-brand-brown font-black text-xs uppercase tracking-[0.2em] shadow-sm hover:border-brand-red hover:text-brand-red transition-all cursor-default">
+                  {area}
+                </span>
+              ))}
+            </div>
           </div>
 
           <div className="lg:col-span-6 bg-white rounded-[3rem] p-10 shadow-xl border border-brand-parchment/50 text-center flex flex-col justify-center">
-             <h3 className="text-3xl font-serif text-brand-brown mb-2">{t.contactHeader}</h3>
-             <p className="text-sm text-stone-500 mb-6 font-serif">{t.inquiriesLabel}</p>
-             <div className="flex flex-col gap-4 max-w-xs mx-auto w-full">
-                <div className="flex items-center gap-4 bg-brand-cream/50 p-3 rounded-2xl border border-brand-parchment/30">
-                   <div className="w-10 h-10 rounded-full bg-brand-red/10 flex items-center justify-center text-brand-red flex-shrink-0">
-                      <MessageCircle size={18} />
-                   </div>
-                   <div className="text-left">
-                      <p className="text-xs font-black uppercase tracking-[0.2em] text-brand-brown/40 mb-0.5">{t.whatsappLabel}</p>
-                      <p className="text-xs font-bold text-brand-brown">+6017-9653871</p>
-                   </div>
+            <h3 className="text-3xl font-serif text-brand-brown mb-2">{t.contactHeader}</h3>
+            <p className="text-sm text-stone-500 mb-6 font-serif">{t.inquiriesLabel}</p>
+            <div className="flex flex-col gap-4 max-w-xs mx-auto w-full">
+              <div className="flex items-center gap-4 bg-brand-cream/50 p-3 rounded-2xl border border-brand-parchment/30">
+                <div className="w-10 h-10 rounded-full bg-brand-red/10 flex items-center justify-center text-brand-red flex-shrink-0">
+                  <MessageCircle size={18} />
                 </div>
-                <div className="flex items-center gap-4 bg-brand-cream/50 p-3 rounded-2xl border border-brand-parchment/30">
-                   <div className="w-10 h-10 rounded-full bg-brand-green/10 flex items-center justify-center text-brand-green flex-shrink-0">
-                      <Mail size={18} />
-                   </div>
-                   <div className="text-left min-w-0">
-                      <p className="text-xs font-black uppercase tracking-[0.2em] text-brand-brown/40 mb-0.5">{t.emailLabel}</p>
-                      <p className="text-xs font-bold text-brand-brown break-all">thewanderingspoon@outlook.com</p>
-                   </div>
+                <div className="text-left">
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-brand-brown/40 mb-0.5">{t.whatsappLabel}</p>
+                  <p className="text-xs font-bold text-brand-brown">+6017-9653871</p>
                 </div>
-             </div>
+              </div>
+              <div className="flex items-center gap-4 bg-brand-cream/50 p-3 rounded-2xl border border-brand-parchment/30">
+                <div className="w-10 h-10 rounded-full bg-brand-green/10 flex items-center justify-center text-brand-green flex-shrink-0">
+                  <Mail size={18} />
+                </div>
+                <div className="text-left min-w-0">
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-brand-brown/40 mb-0.5">{t.emailLabel}</p>
+                  <p className="text-xs font-bold text-brand-brown break-all">thewanderingspoon@outlook.com</p>
+                </div>
+              </div>
+            </div>
           </div>
-          
+
         </div>
 
         {/* Brand Signoff */}
         <div className="mt-12 text-center">
-           <button 
-             onClick={() => setShowIntro(false)}
-             className="px-6 py-4 bg-brand-red text-white rounded-full font-black text-sm shadow-[0_15px_40px_rgba(228,76,42,0.3)] hover:scale-105 active:scale-95 transition-all flex items-center gap-2 mx-auto group w-fit whitespace-nowrap"
-           >
-             <span>{lang === Language.EN ? "View this week's menu" : "查看本周菜单"}</span>
-             <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-           </button>
+          <button
+            onClick={() => setShowIntro(false)}
+            className="px-6 py-4 bg-brand-red text-white rounded-full font-black text-sm shadow-[0_15px_40px_rgba(228,76,42,0.3)] hover:scale-105 active:scale-95 transition-all flex items-center gap-2 mx-auto group w-fit whitespace-nowrap"
+          >
+            <span>{lang === Language.EN ? "View this week's menu" : "查看本周菜单"}</span>
+            <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+          </button>
         </div>
 
       </div>
@@ -921,14 +1000,14 @@ ${shareT.shareThanks}
             {isTimeout ? t.timeUpDesc : t.cancelOrderDesc}
           </p>
           <div className="flex flex-col gap-3">
-            <button 
+            <button
               onClick={resetOrder}
               className="w-full bg-brand-red text-white py-4 rounded-xl font-bold text-base shadow-lg active:scale-95 transition-all"
             >
               {isTimeout ? t.orderAgain : t.confirmCancel}
             </button>
             {!isTimeout && (
-              <button 
+              <button
                 onClick={() => setShowCancelModal(false)}
                 className="w-full bg-stone-100 text-brand-brown py-4 rounded-xl font-bold text-base active:scale-95 transition-all"
               >
@@ -936,7 +1015,7 @@ ${shareT.shareThanks}
               </button>
             )}
             {isTimeout && (
-              <button 
+              <button
                 onClick={() => {
                   setShowCancelModal(false);
                   setStep(AppStep.MENU);
@@ -958,40 +1037,41 @@ ${shareT.shareThanks}
     return (
       <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
         <div className="absolute inset-0 bg-brand-brown/80 backdrop-blur-md"></div>
-        <div className="bg-white w-full max-w-2xl rounded-3xl shadow-3xl relative animate-in zoom-in-95 duration-500 max-h-[90vh] flex flex-col overflow-hidden">
-          <div className="p-6 border-b border-stone-100 flex justify-between items-center">
+        <div className="bg-white w-full max-w-4xl rounded-3xl shadow-3xl relative animate-in zoom-in-95 duration-500 h-[92vh] max-h-[900px] flex flex-col overflow-hidden">
+          <div className="p-4 sm:p-6 border-b border-stone-100 flex justify-between items-center bg-white z-10">
             <h4 className="font-serif font-bold text-xl text-brand-brown">{t.editReceipt}</h4>
             <button onClick={handleCancelReceiptEdit} className="p-2 hover:bg-stone-100 rounded-full transition-colors">
               <X size={20} />
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center gap-4 bg-stone-50 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col items-center gap-4 bg-stone-50 custom-scrollbar">
             {editorStep === 'cropping' ? (
               <>
-                <p className="text-xs text-stone-400 italic font-medium">{t.dragToCrop}</p>
-                <div className="w-full flex-1 flex items-center justify-center bg-white p-4 rounded-2xl border border-stone-200 shadow-inner overflow-hidden">
-                  <div className="max-w-full max-h-full overflow-auto">
-                    <ReactCrop
-                      crop={crop}
-                      onChange={(c) => setCrop(c)}
-                      onComplete={(c) => setCompletedCrop(c)}
-                    >
-                      <img
-                        ref={imgRef}
-                        src={editorSourceUrl}
-                        alt="Receipt Editor"
-                        style={{ 
-                          transform: `rotate(${editorRotation}deg)`, 
-                          transition: 'transform 0.3s ease',
-                          maxHeight: '60vh',
-                          width: 'auto'
-                        }}
-                        onLoad={onImageLoad}
-                        className="object-contain"
-                      />
-                    </ReactCrop>
-                  </div>
+                <p className="text-xs text-stone-400 italic font-medium text-center">{t.dragToCrop}</p>
+                <div className="w-full bg-stone-100 rounded-2xl border border-stone-200 shadow-inner flex items-center justify-center overflow-hidden relative" style={{ height: '40vh', minHeight: '300px' }}>
+                  <ReactCrop
+                    crop={crop}
+                    onChange={(c) => setCrop(c)}
+                    onComplete={(c) => setCompletedCrop(c)}
+                    style={{ maxHeight: '100%' }}
+                  >
+                    <img
+                      ref={imgRef}
+                      src={editorSourceUrl}
+                      alt="Receipt Editor"
+                      style={{
+                        transform: `rotate(${editorRotation}deg)`,
+                        transition: 'transform 0.3s ease',
+                        maxHeight: '40vh',
+                        width: 'auto',
+                        maxWidth: '100%',
+                        display: 'block'
+                      }}
+                      onLoad={onImageLoad}
+                      className="mx-auto"
+                    />
+                  </ReactCrop>
                 </div>
                 <div className="flex gap-4 py-2">
                   <button onClick={() => setEditorRotation(prev => prev - 90)} className="flex items-center gap-2 px-4 py-2 bg-white border border-stone-200 rounded-lg text-sm font-bold text-brand-brown hover:bg-stone-50 transition-all shadow-sm active:scale-95">
@@ -1003,12 +1083,12 @@ ${shareT.shareThanks}
                 </div>
               </>
             ) : (
-              <div className="space-y-6 flex flex-col items-center w-full">
-                <div className="text-center">
+              <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0">
+                <div className="text-center flex flex-col items-center justify-center h-full">
                   <p className="text-[10px] font-black uppercase tracking-widest text-brand-brown/40 mb-2">{t.previewCrop}</p>
-                  <div className="bg-white p-4 rounded-2xl border-4 border-brand-green/20 shadow-xl inline-block max-w-full">
+                  <div className="bg-white p-4 rounded-2xl border-4 border-brand-green/20 shadow-xl inline-block max-w-full overflow-hidden">
                     {croppedPreviewUrl && (
-                      <img src={croppedPreviewUrl} alt="Cropped Preview" className="max-h-[50vh] object-contain rounded-lg" />
+                      <img src={croppedPreviewUrl} alt="Cropped Preview" className="object-contain rounded-lg" style={{ maxHeight: '40vh' }} />
                     )}
                   </div>
                 </div>
@@ -1016,18 +1096,30 @@ ${shareT.shareThanks}
             )}
           </div>
 
-          <div className="p-6 border-t border-stone-100 flex gap-4 bg-white">
-            <button 
+          <div className="p-6 border-t border-stone-100 flex flex-col sm:flex-row gap-3 bg-white">
+            <button
               onClick={editorStep === 'cropping' ? handleCancelReceiptEdit : handleRecrop}
-              className="flex-1 py-4 rounded-xl font-bold text-base bg-stone-100 text-brand-brown hover:bg-stone-200 transition-all"
+              className="flex-1 py-4 rounded-xl font-bold text-base bg-stone-100 text-brand-brown hover:bg-stone-200 transition-all order-3 sm:order-1 flex items-center justify-center gap-2"
             >
+              <RotateCcw className="w-5 h-5" />
               {editorStep === 'cropping' ? t.back : t.recrop}
             </button>
-            <button 
+
+
+
+            <button
               onClick={editorStep === 'cropping' ? handlePreviewCrop : handleConfirmReceiptEdit}
-              className="flex-1 py-4 rounded-xl font-bold text-base bg-brand-green text-white hover:bg-brand-green/90 shadow-lg transition-all"
+              className="flex-1 py-4 rounded-xl font-bold text-base bg-brand-green text-white hover:bg-brand-green/90 shadow-md transition-all order-1 sm:order-3 flex items-center justify-center gap-2"
             >
-              {editorStep === 'cropping' ? t.next : t.confirmChanges}
+              {editorStep === 'cropping' ? (
+                <>
+                  {t.next} <ArrowRight className="w-5 h-5" />
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-5 h-5" /> {t.confirmChanges}
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -1041,21 +1133,75 @@ ${shareT.shareThanks}
       {showIntro && renderIntroPage()}
       {renderConfirmationModal()}
       {renderReceiptEditor()}
-      
+
+      {selectedStory && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-brand-brown/60 backdrop-blur-sm transition-opacity" onClick={() => setSelectedStory(null)}></div>
+          <div className="bg-white w-full max-w-lg rounded-[32px] shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300 max-h-[85vh] overflow-y-auto custom-scrollbar border border-brand-parchment/50">
+            <div className="flex flex-col">
+              {/* Premium Image Header */}
+              {selectedStory.image && (
+                <div className="w-full h-48 md:h-56 relative">
+                  <img
+                    src={selectedStory.image}
+                    alt={selectedStory.title}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent"></div>
+                  <button
+                    onClick={() => setSelectedStory(null)}
+                    className="absolute top-4 right-4 p-2 bg-white/90 backdrop-blur-sm rounded-full hover:bg-white transition-colors shadow-sm z-10"
+                  >
+                    <X size={20} className="text-stone-500" />
+                  </button>
+                </div>
+              )}
+
+              <div className={`flex flex-col items-center text-center px-8 ${selectedStory.image ? '-mt-8 relative z-10' : 'pt-12'}`}>
+                {!selectedStory.image && (
+                  <button
+                    onClick={() => setSelectedStory(null)}
+                    className="absolute top-4 right-4 p-2 bg-stone-100 rounded-full hover:bg-stone-200 transition-colors"
+                  >
+                    <X size={20} className="text-stone-500" />
+                  </button>
+                )}
+
+                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 text-brand-red shadow-lg border-4 border-brand-parchment/60">
+                  <Sparkles size={28} />
+                </div>
+                <h3 className="text-2xl font-serif font-bold text-brand-brown leading-tight mb-2">
+                  {selectedStory.title}
+                </h3>
+                <div className="h-1 w-20 bg-[#5c751a] rounded-full"></div>
+              </div>
+            </div>
+            <div className="prose prose-stone prose-sm mx-auto text-[#742604] font-merriweather leading-relaxed italic px-10 pb-8">
+              <p className="whitespace-pre-line">{selectedStory.content}</p>
+            </div>
+            <div className="mt-8 pt-6 border-t border-brand-parchment/30 text-center">
+              <p className="text-[10px] uppercase tracking-widest text-brand-brown/40 font-bold">
+                {lang === Language.EN ? "The Wandering Spoon Chronicles" : "漫游勺美食志"}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {step === AppStep.MENU && (
         <>
           <div className="relative h-48 md:h-56 w-full overflow-hidden">
-            <img src="https://images.unsplash.com/photo-1547517023-7ca0c162f816?q=80&w=1200&auto=format&fit=crop" alt="Hero" className="w-full h-full object-cover" />
+            <img src={themeInfo.heroImage} alt="Hero" className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-brand-brown/95 via-brand-brown/40 to-transparent flex flex-col justify-end p-4 md:p-8">
               <div className="max-w-3xl mx-auto w-full">
                 <span className="inline-block px-2 py-0.5 bg-brand-red text-[9px] font-bold uppercase tracking-[0.2em] rounded-full mb-2 text-white shadow-lg">
-                  {THEME_INFO.dateRange}
+                  {themeInfo.dateRange}
                 </span>
-                <h2 className="text-3xl font-serif font-bold text-brand-cream mb-2 leading-tight">
-                  {lang === Language.EN ? THEME_INFO.title : THEME_INFO.titleZh}
+                <h2 className="text-3xl font-serif font-bold !text-white mb-2 leading-tight">
+                  {lang === Language.EN ? themeInfo.title : themeInfo.titleZh}
                 </h2>
-                
-                <div className="flex flex-col gap-y-1.5 text-brand-parchment text-[10px] sm:text-xs font-bold tracking-[0.05em] uppercase">
+
+                <div className="flex flex-col gap-y-1 text-brand-parchment text-[10px] sm:text-xs font-bold tracking-[0.05em] uppercase">
                   <div className="flex items-center gap-2">
                     <UtensilsCrossed className="w-3.5 h-3.5 text-brand-green" />
                     <span>{t.nonHalal}</span>
@@ -1064,6 +1210,18 @@ ${shareT.shareThanks}
                     <Clock className="w-3.5 h-3.5 text-brand-red" />
                     <span>{t.cutoff}</span>
                   </div>
+
+                  {/* Promotions */}
+                  <div className="flex flex-col gap-1 animate-in slide-in-from-left duration-700 delay-300">
+                    <div className="flex items-start gap-2 text-yellow-300">
+                      <Sparkles className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                      <span className="leading-tight drop-shadow-md">{t.promoDiscount}</span>
+                    </div>
+                    <div className="flex items-start gap-2 text-emerald-300">
+                      <Truck className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                      <span className="leading-tight drop-shadow-md">{t.promoDelivery}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1071,106 +1229,133 @@ ${shareT.shareThanks}
 
           <div className="max-w-3xl mx-auto px-4 py-8 relative flex flex-col min-h-[60vh]">
             <div className="grid gap-5 mb-10 flex-grow">
-              {MENU_ITEMS.map(item => {
+              {menuItems.map(item => {
                 const qty = cart[item.id] || 0;
                 const remaining = inventory[item.id] || 0;
                 const available = isItemAvailable(item.dayIndex);
                 const isSoldOut = remaining <= 0;
                 const allergenList = lang === Language.EN ? item.allergies : item.allergiesZh;
 
+
                 return (
                   <div key={item.id} className={`bg-white rounded-[24px] shadow-sm border border-brand-parchment/40 overflow-hidden flex flex-col transition-all ${!available ? 'opacity-70 saturate-50 pointer-events-none grayscale-[0.3]' : 'hover:shadow-md'}`}>
-                    <div className="flex flex-col md:flex-row">
-                      <div className="md:w-52 h-40 md:h-auto overflow-hidden relative flex-shrink-0">
-                        <img src={item.image} className="w-full h-full object-cover transition-all duration-700" alt={item.title} />
+                    <div className="flex flex-col md:flex-row h-full">
+                      {/* Image Container - Mobile: Fixed Height Rectangle (Filled), Desktop: Fixed Width Squarish */}
+                      <div className="w-full h-64 md:w-56 md:h-auto overflow-hidden relative flex-shrink-0 group-hover:brightness-110 transition-all">
+                        <img
+                          src={item.image || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=800&auto=format&fit=crop"}
+                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+                          alt={item.title}
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            if (target.src !== "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=800&auto=format&fit=crop") {
+                              target.src = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=800&auto=format&fit=crop";
+                            }
+                          }}
+                        />
                         {!available && (
                           <div className="absolute inset-0 bg-stone-900/40 flex items-center justify-center p-4">
                             <span className="bg-white/90 text-brand-brown px-4 py-2 rounded-full font-bold text-xs shadow-lg backdrop-blur-sm">
-                               {t.orderClosed}
+                              {t.orderClosed}
                             </span>
                           </div>
                         )}
                       </div>
-                      <div className="flex-1 p-4 sm:p-5 flex flex-col">
-                        <div className="mb-0.5">
-                          <span className="text-brand-red text-xs font-bold uppercase tracking-[0.15em]">
+
+                      {/* Content Container - Compacted Spacing */}
+                      <div className="flex-1 p-3 sm:p-4 flex flex-col h-full bg-white relative z-10">
+                        <div className="mb-1">
+                          <span className="text-xs sm:text-sm font-bold text-brand-red uppercase tracking-widest block leading-none mb-1">
                             {lang === Language.EN ? item.day : item.dayZh}
                           </span>
+                          <div className="flex justify-between items-start gap-4">
+                            <h4 className="text-lg sm:text-xl font-bold text-brand-brown leading-tight">
+                              {lang === Language.EN ? item.title : item.titleZh}
+                            </h4>
+                            <p className="text-lg sm:text-xl font-georgia font-bold text-brand-green whitespace-nowrap">
+                              RM {item.price.toFixed(2)}
+                            </p>
+                          </div>
                         </div>
 
-                        <div className="flex justify-between items-center mb-1.5">
-                          <h4 className="text-lg sm:text-xl font-bold text-brand-brown leading-tight">
-                            {lang === Language.EN ? item.title : item.titleZh}
-                          </h4>
-                          <p className="text-lg font-georgia font-bold text-brand-green whitespace-nowrap ml-4">
-                            RM {item.price.toFixed(2)}
-                          </p>
-                        </div>
-
-                        <p className="text-stone-500 text-[13px] mb-3 leading-relaxed font-sans line-clamp-2">
+                        <p className="text-stone-500 text-xs mb-2 leading-tight font-sans line-clamp-2">
                           {lang === Language.EN ? item.description : item.descriptionZh}
                         </p>
 
+                        <div className="mb-2 bg-brand-cream/50 p-2 rounded-lg border border-brand-parchment/60 flex items-start gap-2">
+                          <HandPlatter className="w-3.5 h-3.5 text-brand-brown/60 mt-0.5 flex-shrink-0" />
+                          <div className="leading-none">
+                            <span className="font-bold text-brand-brown text-[9px] uppercase tracking-wider mr-1">{t.servedWith}:</span>
+                            <span className="font-serif italic text-stone-500 text-[10px] leading-tight">
+                              {lang === Language.EN ? (item.sideDishes || "Chef's selection sides") : (item.sideDishesZh || "主厨精选每日配菜")}
+                            </span>
+                          </div>
+                        </div>
+
                         {allergenList && allergenList.length > 0 && (
-                          <div className="flex flex-wrap items-center gap-2 mb-3">
-                            <span className="text-[11px] text-brand-brown/40 font-bold whitespace-nowrap">
+                          <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                            <span className="text-[10px] text-brand-brown/40 font-bold whitespace-nowrap">
                               {t.allergens}:
                             </span>
                             <div className="flex flex-wrap gap-1">
                               {allergenList.map(a => (
-                                <span key={a} className="text-[10px] bg-brand-cream text-brand-green px-2 py-0.5 rounded-full font-bold border border-brand-green/10">
+                                <span key={a} className="text-[9px] bg-brand-cream text-brand-green px-1.5 py-0.5 rounded-full font-bold border border-brand-green/10">
                                   {a}
-                                  </span>
+                                </span>
                               ))}
                             </div>
                           </div>
                         )}
 
-                        <div className="mt-auto pt-1 flex items-center justify-between gap-3">
-                          <button 
-                            onClick={(e) => {
-                              if (!available) return;
-                              handleOpenStory(item);
-                            }}
-                            className={`bg-[#F0F3FF] text-[#5C59E8] px-3 py-1.5 rounded-full font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm group whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#5C59E8] ${available ? 'hover:bg-[#E0E7FF]' : 'cursor-default'}`}
-                          >
-                            <Sparkles className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" /> {t.discoverStory}
-                          </button>
-                          
+                        <div className="mt-auto pt-2 flex items-center justify-between gap-2 border-t border-brand-parchment/10">
+                          {((lang === Language.EN && item.story) || (lang === Language.ZH && item.storyZh)) ? (
+                            <button
+                              onClick={() => setSelectedStory({
+                                title: lang === Language.EN ? item.title : item.titleZh,
+                                content: lang === Language.EN ? (item.story || "") : (item.storyZh || ""),
+                                image: item.image
+                              })}
+                              className="group flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brand-cream hover:bg-brand-parchment/40 text-brand-brown transition-all shadow-sm border border-brand-parchment/40"
+                            >
+                              <Sparkles className="w-3.5 h-3.5 text-brand-red group-hover:scale-110 transition-transform" />
+                              <span className="text-[9px] font-bold uppercase tracking-wider">
+                                {lang === Language.EN ? "Discover Story" : "探索故事"}
+                              </span>
+                            </button>
+                          ) : (
+                            <div className="flex-1"></div>
+                          )}
+
                           <div className="flex items-center ml-auto">
                             {!available ? (
-                               <div className="px-4 py-2 bg-stone-200 text-stone-500 text-[10px] font-bold uppercase tracking-[0.2em] rounded-full flex items-center gap-2">
-                                  <Clock className="w-3.5 h-3.5" />
-                                  <span>{t.notAvailable}</span>
-                               </div>
+                              <div className="px-3 py-1.5 bg-stone-200 text-stone-500 text-[9px] font-bold uppercase tracking-[0.1em] rounded-full flex items-center gap-1.5">
+                                <Clock className="w-3 h-3" />
+                                <span>{t.notAvailable}</span>
+                              </div>
                             ) : isSoldOut ? (
-                              <div className="px-4 py-2 bg-brand-red text-brand-cream text-[10px] font-bold uppercase tracking-[0.2em] rounded-full shadow-md flex items-center gap-2 animate-in slide-in-from-right-4 duration-700">
-                                <ShieldAlert className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
+                              <div className="px-3 py-1.5 bg-brand-red text-brand-cream text-[9px] font-bold uppercase tracking-[0.1em] rounded-full shadow-md flex items-center gap-1.5">
+                                <ShieldAlert className="w-3 h-3 text-white" strokeWidth={2.5} />
                                 <span className="whitespace-nowrap">{t.soldOut}</span>
                               </div>
                             ) : (
-                              <div className="flex items-center gap-2.5 sm:gap-4 bg-white py-1.5 px-3 sm:py-2 sm:px-4 rounded-[16px] border border-stone-100 shadow-sm min-w-[100px] sm:min-w-[120px] justify-between">
-                                <button 
-                                  onClick={() => updateCart(item.id, -1, remaining)} 
-                                  className={`rounded-full transition-colors ${qty > 0 ? 'text-stone-500 hover:text-stone-700' : 'text-stone-300'} focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red`}
+                              <div className="flex items-center gap-2 sm:gap-3 bg-white py-1 px-2 sm:py-1.5 sm:px-3 rounded-[14px] border border-stone-100 shadow-sm min-w-[90px] sm:min-w-[110px] justify-between">
+                                <button
+                                  onClick={() => updateCart(item.id, -1, remaining)}
+                                  className={`rounded-full transition-colors ${qty > 0 ? 'text-stone-500 hover:text-stone-700' : 'text-stone-300'}`}
                                   disabled={qty === 0}
-                                  aria-label={`Decrease quantity of ${lang === Language.EN ? item.title : item.titleZh}`}
                                 >
-                                  <Minus className="w-3.5 h-3.5 sm:w-4 h-4" strokeWidth={3} />
+                                  <Minus className="w-3.5 h-3.5" strokeWidth={3} />
                                 </button>
-                                <span
-                                  key={`${item.id}-${qty}`}
-                                  className="text-base sm:text-lg font-bold text-stone-800 animate-in zoom-in-125 duration-200"
-                                >
+                                <span className="text-base sm:text-lg font-bold text-stone-800">
                                   {qty}
                                 </span>
-                                <button 
-                                  onClick={() => updateCart(item.id, 1, remaining)} 
-                                  className="text-emerald-600 hover:text-emerald-700 transition-colors active:scale-110 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                                <button
+                                  onClick={() => updateCart(item.id, 1, remaining)}
+                                  className="text-emerald-600 hover:text-emerald-700 transition-colors active:scale-110 rounded-full"
                                   disabled={qty >= remaining}
-                                  aria-label={`Increase quantity of ${lang === Language.EN ? item.title : item.titleZh}`}
                                 >
-                                  <Plus className="w-3.5 h-3.5 sm:w-4 h-4" strokeWidth={3} />
+                                  <Plus className="w-3.5 h-3.5" strokeWidth={3} />
                                 </button>
                               </div>
                             )}
@@ -1185,7 +1370,12 @@ ${shareT.shareThanks}
                           <h5 className="text-[9px] font-bold text-brand-green uppercase tracking-[0.2em]">{t.addOnsHeader}</h5>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {ADD_ONS.map(addon => {
+                          {addOns.map(addon => {
+                            // Filter by Day: If addon has specific days, check if it matches current item's day.
+                            if (addon.days && addon.days.length > 0 && !addon.days.includes(item.day)) {
+                              return null;
+                            }
+
                             const compoundId = `${item.id}_${addon.id}`;
                             const addonQty = cart[compoundId] || 0;
                             return (
@@ -1200,8 +1390,8 @@ ${shareT.shareThanks}
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2 bg-white py-1 px-2.5 rounded-[12px] border border-stone-50 shadow-sm min-w-[80px] justify-between">
-                                  <button 
-                                    onClick={() => updateCart(compoundId, -1, qty)} 
+                                  <button
+                                    onClick={() => updateCart(compoundId, -1, qty)}
                                     className={`rounded-full transition-colors ${addonQty > 0 ? 'text-stone-500 hover:text-stone-700' : 'text-stone-300'} focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red`}
                                     disabled={addonQty === 0}
                                     aria-label={`Decrease quantity of ${lang === Language.EN ? addon.title : addon.titleZh}`}
@@ -1214,8 +1404,8 @@ ${shareT.shareThanks}
                                   >
                                     {addonQty}
                                   </span>
-                                  <button 
-                                    onClick={() => updateCart(compoundId, 1, qty)} 
+                                  <button
+                                    onClick={() => updateCart(compoundId, 1, qty)}
                                     className={`rounded-full transition-colors ${addonQty >= qty ? 'text-stone-300' : 'text-emerald-600 hover:text-emerald-700 active:scale-110'} focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500`}
                                     disabled={addonQty >= qty}
                                     aria-label={`Increase quantity of ${lang === Language.EN ? addon.title : addon.titleZh}`}
@@ -1242,7 +1432,7 @@ ${shareT.shareThanks}
                   </p>
                   <p ref={totalRef} className="text-xl sm:text-2xl font-georgia font-bold text-brand-green whitespace-nowrap">RM {total.toFixed(2)}</p>
                 </button>
-                <button 
+                <button
                   onClick={() => total > 0 && setStep(AppStep.DETAILS)}
                   disabled={total <= 0}
                   className={`px-8 py-4 rounded-xl font-bold shadow-md transition-all text-base ${total > 0 ? 'bg-brand-green text-white hover:bg-brand-green/90 active:scale-95' : 'bg-stone-200 text-stone-400 cursor-not-allowed shadow-none'}`}
@@ -1260,56 +1450,56 @@ ${shareT.shareThanks}
                         </div>
                         <div className="space-y-0.5">
                           {group.items.map(({ id, q, details }) => {
-                              const isMain = details.itemType === 'main';
-                              let maxQuantity = 99;
-                              if (isMain) {
-                                  maxQuantity = inventory[id] || 0;
-                              } else {
-                                  const parts = id.split('_');
-                                  const parentId = parts.slice(0, -1).join('_');
-                                  maxQuantity = cart[parentId] || 0;
-                              }
-                              return (
-                                  <div
-                                    key={id}
-                                    className={`flex justify-between items-start py-1.5 rounded-lg px-2 -mx-2 transition-all duration-500 ${!isMain ? 'pl-5' : 'pl-2'} ${highlightedCartItem === id ? 'bg-brand-parchment scale-[1.01]' : 'bg-transparent scale-100'}`}
-                                  >
-                                      <div className="flex-1 pr-3">
-                                          <p className={`font-bold ${isMain ? 'text-brand-brown text-[13px]' : 'text-stone-700 text-xs'}`}>
-                                              {lang === Language.EN ? details.title : details.titleZh}
-                                          </p>
-                                          <p className="text-[10px] text-stone-500 font-georgia mt-0.5">
-                                              RM {details.price.toFixed(2)} each
-                                          </p>
-                                      </div>
-                                      <div className="flex items-center gap-2 sm:gap-3">
-                                          <div className="flex items-center gap-1.5 bg-stone-100/50 p-0.5 rounded-lg border border-stone-200/40">
-                                            <button 
-                                              onClick={() => updateCart(id, -1, maxQuantity)}
-                                              className="p-1 text-stone-500 hover:text-brand-red transition-colors"
-                                              aria-label="Decrease quantity"
-                                            >
-                                              <Minus className="w-3 h-3" />
-                                            </button>
-                                            <span className="text-11px font-bold text-brand-brown w-3 text-center">{q}</span>
-                                            <button 
-                                              onClick={() => updateCart(id, 1, maxQuantity)}
-                                              className={`p-1 transition-colors ${q >= maxQuantity ? 'text-stone-300' : 'text-stone-500 hover:text-brand-green'}`}
-                                              disabled={q >= maxQuantity}
-                                              aria-label="Increase quantity"
-                                            >
-                                              <Plus className="w-3 h-3" />
-                                            </button>
-                                          </div>
-                                          <p className="font-bold text-brand-green font-georgia text-xs sm:text-sm text-right min-w-[55px] sm:min-w-[70px]">
-                                              RM {(details.price * q).toFixed(2)}
-                                          </p>
-                                          <button onClick={() => updateCart(id, -q, 99)} className="p-1 text-stone-300 hover:text-brand-red transition-colors ml-0.5" title="Remove all">
-                                              <X className="w-3 h-3" />
-                                          </button>
-                                      </div>
+                            const isMain = details.itemType === 'main';
+                            let maxQuantity = 99;
+                            if (isMain) {
+                              maxQuantity = inventory[id] || 0;
+                            } else {
+                              const parts = id.split('_');
+                              const parentId = parts.slice(0, -1).join('_');
+                              maxQuantity = cart[parentId] || 0;
+                            }
+                            return (
+                              <div
+                                key={id}
+                                className={`flex justify-between items-start py-1.5 rounded-lg px-2 -mx-2 transition-all duration-500 ${!isMain ? 'pl-5' : 'pl-2'} ${highlightedCartItem === id ? 'bg-brand-parchment scale-[1.01]' : 'bg-transparent scale-100'}`}
+                              >
+                                <div className="flex-1 pr-3">
+                                  <p className={`font-bold ${isMain ? 'text-brand-brown text-[13px]' : 'text-stone-700 text-xs'}`}>
+                                    {lang === Language.EN ? details.title : details.titleZh}
+                                  </p>
+                                  <p className="text-[10px] text-stone-500 font-georgia mt-0.5">
+                                    RM {details.price.toFixed(2)} each
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2 sm:gap-3">
+                                  <div className="flex items-center gap-1.5 bg-stone-100/50 p-0.5 rounded-lg border border-stone-200/40">
+                                    <button
+                                      onClick={() => updateCart(id, -1, maxQuantity)}
+                                      className="p-1 text-stone-500 hover:text-brand-red transition-colors"
+                                      aria-label="Decrease quantity"
+                                    >
+                                      <Minus className="w-3 h-3" />
+                                    </button>
+                                    <span className="text-11px font-bold text-brand-brown w-3 text-center">{q}</span>
+                                    <button
+                                      onClick={() => updateCart(id, 1, maxQuantity)}
+                                      className={`p-1 transition-colors ${q >= maxQuantity ? 'text-stone-300' : 'text-stone-500 hover:text-brand-green'}`}
+                                      disabled={q >= maxQuantity}
+                                      aria-label="Increase quantity"
+                                    >
+                                      <Plus className="w-3 h-3" />
+                                    </button>
                                   </div>
-                              );
+                                  <p className="font-bold text-brand-green font-georgia text-xs sm:text-sm text-right min-w-[55px] sm:min-w-[70px]">
+                                    RM {(details.price * q).toFixed(2)}
+                                  </p>
+                                  <button onClick={() => updateCart(id, -q, 99)} className="p-1 text-stone-300 hover:text-brand-red transition-colors ml-0.5" title="Remove all">
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            );
                           })}
                         </div>
                       </div>
@@ -1342,31 +1532,31 @@ ${shareT.shareThanks}
             <div className="space-y-4">
               <h4 className="text-lg font-serif font-bold text-brand-brown">{t.contactInfo}</h4>
               <div className="space-y-3">
-                <input 
+                <input
                   ref={nameRef}
-                  type="text" 
+                  type="text"
                   placeholder={t.namePlaceholder}
                   className={`w-full bg-white border border-brand-brown/20 rounded-[4px] p-3 text-sm outline-none transition-all placeholder:text-brand-brown/40 ${touched.name && validationErrors.name ? 'border-brand-red' : 'focus:border-brand-brown/60'}`}
-                  value={customer.name} 
-                  onChange={e => setCustomer({...customer, name: e.target.value})}
+                  value={customer.name}
+                  onChange={e => setCustomer({ ...customer, name: e.target.value })}
                   onBlur={() => handleBlur('name')}
                 />
-                <input 
+                <input
                   ref={phoneRef}
-                  type="tel" 
+                  type="tel"
                   placeholder={t.phonePlaceholder}
                   className={`w-full bg-white border border-brand-brown/20 rounded-[4px] p-3 text-sm outline-none transition-all placeholder:text-brand-brown/40 ${touched.phone && validationErrors.phone ? 'border-brand-red' : 'focus:border-brand-brown/60'}`}
-                  value={customer.phone} 
-                  onChange={e => setCustomer({...customer, phone: e.target.value})}
+                  value={customer.phone}
+                  onChange={e => setCustomer({ ...customer, phone: e.target.value })}
                   onBlur={() => handleBlur('phone')}
                 />
                 <input
                   ref={emailRef}
-                  type="email" 
+                  type="email"
                   placeholder={t.emailPlaceholder}
                   className={`w-full bg-white border border-brand-brown/20 rounded-[4px] p-3 text-sm outline-none transition-all placeholder:text-brand-brown/40 ${touched.email && validationErrors.email ? 'border-brand-red' : 'focus:border-brand-brown/60'}`}
-                  value={customer.email} 
-                  onChange={e => setCustomer({...customer, email: e.target.value})}
+                  value={customer.email}
+                  onChange={e => setCustomer({ ...customer, email: e.target.value })}
                   onBlur={() => handleBlur('email')}
                 />
               </div>
@@ -1375,17 +1565,37 @@ ${shareT.shareThanks}
             <div className="space-y-4">
               <h4 className="text-lg font-serif font-bold text-brand-brown">{t.shippingInfo}</h4>
               <div className="space-y-4">
-                <textarea 
+                <textarea
                   ref={addressRef}
                   placeholder={t.addressPlaceholder}
                   rows={4}
                   className={`w-full bg-white border border-brand-brown/20 rounded-[4px] p-3 text-sm outline-none transition-all placeholder:text-brand-brown/40 resize-none ${touched.address && validationErrors.address ? 'border-brand-red' : 'focus:border-brand-brown/60'}`}
-                  value={customer.address} 
-                  onChange={e => setCustomer(prev => ({...prev, address: e.target.value, coordinates: undefined}))}
-                  onBlur={() => handleBlur('address')}
+                  value={customer.address}
+                  onChange={e => setCustomer(prev => ({ ...prev, address: e.target.value, coordinates: undefined }))}
+                  onBlur={() => {
+                    handleBlur('address');
+                    if (customer.address && !customer.coordinates) {
+                      setIsLocating(true);
+                      fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(customer.address)}`, {
+                        headers: { 'Accept-Language': lang === Language.ZH ? 'zh-CN' : 'en-US' }
+                      })
+                        .then(res => res.json())
+                        .then(data => {
+                          if (data && data.length > 0) {
+                            const { lat, lon } = data[0];
+                            setCustomer(prev => ({
+                              ...prev,
+                              coordinates: { lat: parseFloat(lat), lng: parseFloat(lon) }
+                            }));
+                          }
+                        })
+                        .catch(console.error)
+                        .finally(() => setIsLocating(false));
+                    }
+                  }}
                 />
 
-                <button 
+                <button
                   onClick={handleLocate}
                   className="w-full bg-brand-red text-white py-3.5 rounded-[4px] font-bold text-sm flex items-center justify-center gap-2 transition-all hover:bg-brand-red/90 shadow-sm"
                 >
@@ -1400,7 +1610,7 @@ ${shareT.shareThanks}
                     </div>
                   )}
                   <div className="absolute right-2 top-2 z-20 flex flex-col gap-1 shadow-sm">
-                    <button 
+                    <button
                       type="button"
                       onClick={() => setMapZoom(prev => Math.min(prev + 1, 21))}
                       className="bg-white/95 p-1.5 border border-stone-200 rounded-t-sm hover:bg-stone-50 transition-colors shadow-sm focus:outline-none focus:ring-1 focus:ring-brand-green"
@@ -1408,7 +1618,7 @@ ${shareT.shareThanks}
                     >
                       <Plus className="w-4 h-4 text-stone-600" />
                     </button>
-                    <button 
+                    <button
                       type="button"
                       onClick={() => setMapZoom(prev => Math.max(prev - 1, 1))}
                       className="bg-white/95 p-1.5 border border-t-0 border-stone-200 rounded-b-sm hover:bg-stone-50 transition-colors shadow-sm focus:outline-none focus:ring-1 focus:ring-brand-green"
@@ -1428,26 +1638,26 @@ ${shareT.shareThanks}
                   ></iframe>
                 </div>
 
-                <input 
+                <input
                   ref={deliveryInstructionRef}
-                  type="text" 
+                  type="text"
                   placeholder={t.deliveryInstructionPlaceholder}
                   className={`w-full bg-white border border-brand-brown/20 rounded-[4px] p-3 text-sm outline-none transition-all placeholder:text-brand-brown/40 ${touched.deliveryInstruction && validationErrors.deliveryInstruction ? 'border-brand-red' : 'focus:border-brand-brown/60'}`}
                   value={customer.deliveryInstruction}
-                  onChange={e => setCustomer({...customer, deliveryInstruction: e.target.value})}
+                  onChange={e => setCustomer({ ...customer, deliveryInstruction: e.target.value })}
                   onBlur={() => handleBlur('deliveryInstruction')}
                 />
               </div>
             </div>
 
             <div className="flex items-center gap-4 pt-4">
-              <button 
+              <button
                 onClick={() => setStep(AppStep.MENU)}
                 className="flex-1 bg-stone-100 text-brand-brown py-4 rounded-xl font-bold text-base transition-all hover:bg-stone-200"
               >
                 {t.back}
               </button>
-              <button 
+              <button
                 onClick={handleProceedToReview}
                 className="flex-1 bg-brand-green text-white py-4 rounded-xl font-bold text-base transition-all hover:bg-brand-green/90 shadow-md"
               >
@@ -1514,7 +1724,7 @@ ${shareT.shareThanks}
                     <div key={idx} className="space-y-2">
                       <span className="text-[9px] font-black uppercase tracking-[0.25em] text-brand-red/60">{group.dayLabel}</span>
                       <div className="space-y-1">
-                        {group.items.map(({id, q, details}) => (
+                        {group.items.map(({ id, q, details }) => (
                           <div key={id} className="flex justify-between items-center text-sm">
                             <span className="text-brand-brown font-serif">{lang === Language.EN ? details.title : details.titleZh} <span className="text-brand-red font-sans font-bold text-xs ml-1">×{q}</span></span>
                             <span className="text-brand-brown font-georgia font-bold">RM {(details.price * q).toFixed(2)}</span>
@@ -1523,24 +1733,40 @@ ${shareT.shareThanks}
                       </div>
                     </div>
                   ))}
-                  <div className="pt-4 border-t-2 border-dashed border-brand-parchment flex justify-between items-center">
-                    <span className="text-brand-brown font-serif font-black text-sm uppercase tracking-widest">{t.cartTotal}</span>
-                    <span className="text-brand-green font-georgia font-black text-2xl">RM {total.toFixed(2)}</span>
+                  <div className="pt-4 border-t-2 border-dashed border-brand-parchment flex flex-col gap-1">
+                    {hasDiscount && (
+                      <>
+                        <div className="flex justify-between items-center text-xs text-stone-500">
+                          <span className="font-serif font-bold uppercase tracking-widest">Subtotal</span>
+                          <span className="font-mono">RM {subtotal.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs text-brand-green">
+                          <span className="font-serif font-bold uppercase tracking-widest flex items-center gap-1">
+                            <Sparkles className="w-3 h-3" /> Discount ({(discountRate * 100).toFixed(0)}%)
+                          </span>
+                          <span className="font-mono">- RM {discount.toFixed(2)}</span>
+                        </div>
+                      </>
+                    )}
+                    <div className="flex justify-between items-center mt-1">
+                      <span className="text-brand-brown font-serif font-black text-sm uppercase tracking-widest">{t.cartTotal}</span>
+                      <span className="text-brand-green font-georgia font-black text-2xl">RM {total.toFixed(2)}</span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
             <div className="flex items-center gap-4 pt-4">
-              <button 
+              <button
                 onClick={() => setStep(AppStep.DETAILS)}
                 className="flex-1 bg-stone-100 text-brand-brown py-4 rounded-xl font-bold text-base transition-all hover:bg-stone-200"
               >
                 {t.back}
               </button>
-              <button 
+              <button
                 onClick={() => setStep(AppStep.PAYMENT)}
-                className="flex-[1.5] bg-brand-green text-white py-4 rounded-xl font-bold text-sm sm:text-base uppercase tracking-wider transition-all hover:bg-brand-green/90 shadow-md flex items-center justify-center whitespace-nowrap"
+                className="flex-[1.5] bg-brand-green text-white py-4 rounded-xl font-bold text-sm sm:text-base transition-all hover:bg-brand-green/90 shadow-md flex items-center justify-center whitespace-nowrap"
               >
                 {t.reviewConfirm}
               </button>
@@ -1557,6 +1783,8 @@ ${shareT.shareThanks}
               <p className="text-brand-brown/60 text-sm font-merriweather leading-relaxed">{t.paymentInstruction}</p>
             </div>
 
+
+
             <div className="bg-[#FEF2F2] border border-[#FEE2E2] rounded-[8px] p-4 flex flex-col items-center justify-center">
               <p className="text-[#991B1B] text-[10px] font-black uppercase tracking-[0.2em] mb-1">{t.timeRemaining}</p>
               <div className="flex items-center gap-2.5">
@@ -1565,49 +1793,74 @@ ${shareT.shareThanks}
               </div>
             </div>
 
-            <div className="flex border-b border-stone-200">
-              <button 
-                onClick={() => setPaymentMethod('bank')}
-                className={`flex-1 pb-3 flex items-center justify-center gap-2 font-bold text-sm transition-all ${paymentMethod === 'bank' ? 'text-[#0D9488] border-b-2 border-[#0D9488]' : 'text-stone-400'}`}
-              >
-                <Landmark className="w-4 h-4" />
-                {t.payWithBank}
-              </button>
-              <button 
-                onClick={(() => setPaymentMethod('tng'))}
-                className={`flex-1 pb-3 flex items-center justify-center gap-2 font-bold text-sm transition-all ${paymentMethod === 'tng' ? 'text-[#0D9488] border-b-2 border-[#0D9488]' : 'text-stone-400'}`}
-              >
-                <CreditCard className="w-4 h-4" />
-                {t.payWithTng}
-              </button>
-            </div>
-
-            <div className="bg-[#F8F9FA]/50 rounded-[8px] p-6 border border-stone-100 space-y-4">
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-stone-500 font-merriweather">{t.accountNameLabel}</span>
-                <span className="text-brand-brown font-bold">{THEME_INFO.accountName}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-stone-500 font-merriweather">{lang === Language.EN ? 'Bank' : '银行'}</span>
-                <span className="text-brand-brown font-bold">{paymentMethod === 'bank' ? THEME_INFO.bankName : 'Touch \'n Go eWallet'}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-stone-500 font-merriweather">{paymentMethod === 'bank' ? (lang === Language.EN ? 'Account No.' : '账号') : (lang === Language.EN ? 'Phone Number' : '电话号码')}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-brand-brown font-bold font-mono">
-                    {paymentMethod === 'bank' ? THEME_INFO.bankAccount : THEME_INFO.tngPhoneNumber}
-                  </span>
-                  <button 
-                    onClick={() => handleCopy(paymentMethod === 'bank' ? THEME_INFO.bankAccount : THEME_INFO.tngPhoneNumber)}
-                    className="text-[#0D9488] p-1 hover:bg-[#0D9488]/10 rounded transition-colors"
-                  >
-                    {copiedValue === (paymentMethod === 'bank' ? THEME_INFO.bankAccount : THEME_INFO.tngPhoneNumber) ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  </button>
+            <div className="space-y-4">
+              <div className="bg-brand-cream border-l-4 border-brand-green/40 p-4 rounded-r-lg flex gap-3.5 shadow-sm animate-in fade-in slide-in-from-top-2 duration-700">
+                <div className="bg-brand-green/10 p-1.5 rounded-full h-fit flex-shrink-0">
+                  <Info className="w-4 h-4 text-brand-green" />
                 </div>
+                <p className="text-[13px] text-brand-brown/80 font-medium leading-relaxed font-merriweather italic">
+                  {t.paymentSelectPrompt}
+                </p>
               </div>
-              <div className="pt-4 mt-2 border-t border-stone-100 flex justify-between items-center">
-                <span className="text-brand-brown font-serif font-bold text-lg">{t.cartTotal}</span>
-                <span className="text-brand-brown font-georgia font-bold text-lg">RM {total.toFixed(2)}</span>
+
+              <div className="flex border-b border-stone-200">
+                <button
+                  onClick={() => setPaymentMethod('bank')}
+                  className={`flex-1 pb-3 flex items-center justify-center gap-2 font-bold text-sm transition-all ${paymentMethod === 'bank' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-stone-400'}`}
+                >
+                  <Landmark className="w-4 h-4" />
+                  {t.payWithBank}
+                </button>
+                <button
+                  onClick={(() => setPaymentMethod('tng'))}
+                  className={`flex-1 pb-3 flex items-center justify-center gap-2 font-bold text-sm transition-all ${paymentMethod === 'tng' ? 'text-[#0052FF] border-b-2 border-[#0052FF]' : 'text-stone-400'}`}
+                >
+                  <CreditCard className="w-4 h-4" />
+                  {t.payWithTng}
+                </button>
+              </div>
+
+              <div className={`rounded-[12px] p-6 border transition-all duration-500 shadow-sm ${paymentMethod === 'bank' ? 'bg-amber-50/40 border-amber-100 shadow-amber-500/5' : 'bg-blue-50/40 border-blue-100 shadow-blue-500/5'} space-y-4`}>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-stone-500 font-merriweather">{t.accountNameLabel}</span>
+                  <span className={`font-bold ${paymentMethod === 'bank' ? 'text-amber-900' : 'text-blue-900'}`}>{themeInfo.accountName}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-stone-500 font-merriweather">{lang === Language.EN ? 'Bank' : '银行'}</span>
+                  <span className={`font-bold ${paymentMethod === 'bank' ? 'text-amber-900' : 'text-blue-900'}`}>{paymentMethod === 'bank' ? themeInfo.bankName : 'Touch \'n Go eWallet'}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-stone-500 font-merriweather">{paymentMethod === 'bank' ? (lang === Language.EN ? 'Account No.' : '账号') : (lang === Language.EN ? 'Phone Number' : '电话号码')}</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`font-bold font-mono ${paymentMethod === 'bank' ? 'text-amber-900' : 'text-blue-900'}`}>
+                      {paymentMethod === 'bank' ? themeInfo.bankAccount : themeInfo.tngPhoneNumber}
+                    </span>
+                    <button
+                      onClick={() => handleCopy(paymentMethod === 'bank' ? themeInfo.bankAccount : themeInfo.tngPhoneNumber)}
+                      className={`p-1 rounded transition-colors ${paymentMethod === 'bank' ? 'text-amber-600 hover:bg-amber-100' : 'text-blue-600 hover:bg-blue-100'}`}
+                    >
+                      {copiedValue === (paymentMethod === 'bank' ? themeInfo.bankAccount : themeInfo.tngPhoneNumber) ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div className={`pt-4 mt-2 border-t flex flex-col gap-1 ${paymentMethod === 'bank' ? 'border-amber-100' : 'border-blue-100'}`}>
+                  {hasDiscount && (
+                    <>
+                      <div className="flex justify-between items-center text-xs text-stone-500">
+                        <span className="font-serif font-bold uppercase tracking-widest">Subtotal</span>
+                        <span className="font-mono">RM {subtotal.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs text-brand-green">
+                        <span className="font-serif font-bold uppercase tracking-widest">Discount</span>
+                        <span className="font-mono">- RM {discount.toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
+                  <div className="flex justify-between items-center">
+                    <span className="text-brand-brown font-serif font-bold text-lg">{t.cartTotal}</span>
+                    <span className={`font-georgia font-bold text-lg ${paymentMethod === 'bank' ? 'text-amber-900' : 'text-blue-900'}`}>RM {total.toFixed(2)}</span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1640,30 +1893,29 @@ ${shareT.shareThanks}
                       </div>
                     </div>
                   </label>
-                  <input 
-                    type="file" 
-                    id="receipt-upload" 
-                    className="hidden" 
-                    accept="image/*" 
-                    onChange={handleReceiptFileChange} 
+                  <input
+                    type="file"
+                    id="receipt-upload"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleReceiptFileChange}
                   />
                 </div>
               )}
             </div>
 
             <div className="flex items-center gap-4 pt-4">
-              <button 
+              <button
                 onClick={handleBackFromPayment}
                 className="flex-1 bg-stone-100 text-brand-brown py-4 rounded-xl font-bold text-base transition-all hover:bg-stone-200"
               >
                 {t.back}
               </button>
-              <button 
-                disabled={!receiptFile || loadingAI}
+              <button
+                disabled={!receiptFile}
                 onClick={handlePaymentSubmit}
-                className={`flex-1 py-4 rounded-xl font-bold text-base transition-all shadow-md flex items-center justify-center gap-2 ${!receiptFile || loadingAI ? 'bg-stone-300 text-stone-500 cursor-not-allowed' : 'bg-brand-green text-white hover:bg-brand-green/90'}`}
+                className={`flex-1 py-4 rounded-xl font-bold text-base transition-all shadow-md flex items-center justify-center gap-2 ${!receiptFile ? 'bg-stone-300 text-stone-500 cursor-not-allowed' : 'bg-brand-green text-white hover:bg-brand-green/90'}`}
               >
-                {loadingAI && <Loader2 className="animate-spin w-4 h-4" />}
                 {t.confirmOrder}
               </button>
             </div>
@@ -1671,50 +1923,53 @@ ${shareT.shareThanks}
         </div>
       )}
 
+
+
+
+
       {step === AppStep.VERIFYING && (
-        <div className="max-w-xl mx-auto px-4 py-8 animate-in fade-in duration-700">
-          <div className="bg-white rounded-[4px] shadow-lg p-8 flex flex-col items-center text-center gap-8">
-            <div className="relative">
-              <div className="w-24 h-24 rounded-full border-4 border-brand-parchment flex items-center justify-center text-brand-green">
-                <Hourglass size={40} className="animate-spin duration-[3s]" />
-              </div>
-              <div className="absolute -bottom-2 -right-2 bg-white p-1.5 rounded-full shadow-md">
-                <Mail size={20} className="text-brand-red animate-bounce" />
-              </div>
+        <div className="max-w-xl mx-auto px-4 py-8">
+          <div className="bg-white rounded-[4px] shadow-lg p-8 flex flex-col gap-6 items-center text-center animate-in fade-in zoom-in-95 duration-500">
+            <div className="w-20 h-20 bg-brand-cream rounded-full flex items-center justify-center relative">
+              <div className="absolute inset-0 border-4 border-brand-parchment rounded-full"></div>
+              <div className="absolute inset-0 border-4 border-brand-green border-t-transparent rounded-full animate-spin"></div>
+              <ShieldAlert className="w-8 h-8 text-brand-green" />
             </div>
 
-            <div className="space-y-3">
-              <h3 className="text-3xl font-serif font-bold text-brand-brown">{t.verifyingTitle}</h3>
-              <p className="text-stone-500 text-sm font-merriweather leading-relaxed max-w-sm mx-auto">
+            <div className="space-y-2">
+              <h3 className="text-2xl font-serif font-bold text-brand-brown">{t.verifyingTitle}</h3>
+              <p className="text-stone-500 text-sm font-merriweather max-w-xs mx-auto leading-relaxed">
                 {t.verifyingDesc}
               </p>
             </div>
 
-            <div className="w-full space-y-4 px-4 text-left">
-              <div className="flex items-center gap-3 text-brand-green font-bold text-sm">
-                <CheckCircle size={18} />
-                <span>{t.verifyingStep1}</span>
+            <div className="w-full bg-brand-cream/50 rounded-xl p-5 border border-brand-parchment/60 text-left space-y-4 max-w-sm">
+              <div className="flex items-center gap-3 text-brand-brown/70">
+                <CheckCircle className="w-5 h-5 text-brand-green" />
+                <span className="text-sm font-bold">{t.verifyingStep1}</span>
               </div>
-              <div className="flex items-center gap-3 text-brand-green font-bold text-sm">
-                <CheckCircle size={18} />
-                <span>{t.verifyingStep2}</span>
+              <div className="flex items-center gap-3 text-brand-brown/70">
+                <CheckCircle className="w-5 h-5 text-brand-green" />
+                <span className="text-sm font-bold">{t.verifyingStep2}</span>
               </div>
-              <div className="flex items-center gap-3 text-stone-300 font-bold text-sm">
-                <Loader2 size={18} className="animate-spin" />
-                <span>{t.verifyingStep3}</span>
+              <div className="flex items-center gap-3 text-brand-brown animate-pulse">
+                <Clock className="w-5 h-5 text-amber-500" />
+                <span className="text-sm font-bold">{t.verifyingStep3}</span>
               </div>
             </div>
 
-            <div className="w-full pt-6 border-t border-brand-parchment/30">
-              <div className="bg-brand-cream/50 rounded-xl p-4 flex flex-col items-center gap-4">
-                 <p className="text-[10px] font-black uppercase tracking-widest text-brand-brown/40">Owner Confirmation Simulation</p>
-                 <button 
-                  onClick={handleManualConfirmByAdmin}
-                  className="w-full bg-brand-brown text-white py-3 rounded-lg font-bold text-xs uppercase tracking-widest shadow-md hover:bg-brand-brown/90 transition-all"
-                 >
-                   {t.adminConfirm}
-                 </button>
-              </div>
+            {/* Manual Trigger for Verification (Simulated Admin Action) */}
+            <div className="pt-4 w-full">
+              <p className="text-[10px] uppercase tracking-widest text-stone-400 mb-3 font-bold border-b border-stone-100 pb-2">
+                Owner Control Panel (Simulation)
+              </p>
+              <button
+                onClick={() => setStep(AppStep.CONFIRMATION)}
+                className="w-full bg-stone-800 text-white py-3 rounded-lg font-bold text-sm hover:bg-black transition-all shadow-lg flex items-center justify-center gap-2 group"
+              >
+                <CheckCircle className="w-4 h-4 text-green-400 group-hover:scale-110 transition-transform" />
+                {t.adminConfirm}
+              </button>
             </div>
           </div>
         </div>
@@ -1733,15 +1988,7 @@ ${shareT.shareThanks}
               </p>
             </div>
 
-            <div className="bg-[#FAF7F2] rounded-xl p-6 space-y-4 mx-2">
-              <div className="flex items-center gap-2">
-                <ChefHat className="w-5 h-5 text-brand-red" />
-                <span className="text-lg font-serif font-bold text-brand-red">{t.chefNote}</span>
-              </div>
-              <p className="text-brand-brown font-serif italic text-base leading-relaxed opacity-90">
-                "{chefNote?.[lang === Language.EN ? 'en' : 'zh']}"
-              </p>
-            </div>
+
 
             <div className="space-y-3 px-2 pt-4 border-t border-stone-100">
               <div className="flex justify-between items-center text-sm">
@@ -1760,7 +2007,7 @@ ${shareT.shareThanks}
                 <h4 className="font-serif font-bold text-brand-brown text-lg whitespace-nowrap">Order Summary</h4>
                 <div className="h-[1px] flex-1 bg-brand-brown/10"></div>
               </div>
-              
+
               <div className="bg-white border-2 border-brand-parchment/60 rounded-[8px] overflow-hidden shadow-md flex flex-col relative">
                 <div className="max-h-[300px] overflow-y-auto p-6 space-y-6 custom-scrollbar bg-[radial-gradient(#f0f0f0_1px,transparent_1px)] [background-size:20px_20px]">
                   {getGroupedCart().map((group, groupIdx) => (
@@ -1778,8 +2025,8 @@ ${shareT.shareThanks}
                               <p className="text-brand-brown font-serif font-bold text-sm leading-tight">
                                 {lang === Language.EN ? details.title : details.titleZh}
                               </p>
-                              <p className="text-[10px] text-stone-500 font-sans mt-0.5 tracking-tight">
-                                 {q} × RM {details.price.toFixed(2)}
+                              <p className="text-[11px] text-stone-500 mt-0.5 tracking-tight">
+                                {q} × <span className="font-georgia font-bold">RM {details.price.toFixed(2)}</span>
                               </p>
                             </div>
                             <span className="text-brand-brown font-bold font-georgia text-sm whitespace-nowrap pt-1">
@@ -1791,7 +2038,7 @@ ${shareT.shareThanks}
                     </div>
                   ))}
                 </div>
-                
+
                 <div className="bg-brand-cream/40 border-t-2 border-dashed border-brand-parchment p-5 px-6">
                   <div className="flex justify-between items-center">
                     <span className="text-brand-brown font-serif font-black text-xs uppercase tracking-widest opacity-60">Total Bill</span>
@@ -1812,100 +2059,7 @@ ${shareT.shareThanks}
         </div>
       )}
 
-      {activeStoryItem && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-brand-brown/60 backdrop-blur-md" onClick={() => setActiveStoryItem(null)}></div>
-          <div className="bg-brand-cream w-full max-w-lg rounded-[48px] shadow-3xl relative animate-in zoom-in-95 duration-500 max-h-[90vh] overflow-y-auto overflow-x-hidden border-2 border-brand-parchment custom-scrollbar">
-            <button onClick={() => setActiveStoryItem(null)} className="absolute top-6 right-6 p-3 bg-brand-parchment/80 backdrop-blur-sm rounded-full hover:bg-brand-parchment transition-all z-20 shadow-md group">
-              <X className="w-5 h-5 text-brand-brown group-hover:rotate-90 transition-transform" />
-            </button>
-            <div className="h-60 overflow-hidden relative flex-shrink-0">
-              <img src={activeStoryItem.image} className="w-full h-full object-cover" alt="Story cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-brand-cream via-transparent"></div>
-            </div>
-            <div className="px-10 pb-12 pt-4 text-center">
-              <span className="text-brand-green text-[10px] font-bold uppercase tracking-[0.3em] mb-4 block">Nyonya Heritage</span>
-              <h4 className="text-4xl font-serif text-brand-brown mb-8">{lang === Language.EN ? activeStoryItem.title : activeStoryItem.titleZh}</h4>
-              <div className="min-h-[200px] flex items-center justify-center">
-                {loadingStory ? (
-                  <div className="flex flex-col items-center gap-4">
-                    <Loader2 className="animate-spin text-brand-red w-10 h-10" />
-                    <p className="text-brand-brown/40 text-sm italic font-medium tracking-widest">{t.storyLoading}</p>
-                  </div>
-                ) : (
-                  <p className="text-brand-brown font-serif leading-loose italic text-xl whitespace-pre-wrap opacity-90 text-left">
-                    {itemStory}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
-      <div 
-        className={`fixed left-0 right-0 z-50 flex flex-col items-end px-4 sm:left-auto sm:right-6 sm:px-0 transition-all duration-500 pointer-events-none ${step !== AppStep.MENU || isCartExpanded ? 'opacity-0' : 'opacity-100'}`}
-        style={{ bottom: step === AppStep.MENU ? '85px' : '20px' }}
-      >
-        {isChatOpen && (
-          <div className="bg-brand-cream w-full sm:w-[420px] h-[min(600px,65vh)] sm:h-[min(600px,75vh)] rounded-[40px] shadow-3xl border-2 border-brand-parchment flex flex-col overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-10 duration-500 origin-bottom-right mb-2 pointer-events-auto">
-            <div className="bg-brand-brown px-6 py-5 flex justify-between items-center text-brand-cream">
-              <div className="flex items-center gap-3">
-                <ChefHat className="w-5 h-5 text-brand-parchment" />
-                <h5 className="font-fredoka text-xl text-brand-parchment tracking-normal">{t.aiConciergeTitle}</h5>
-              </div>
-              <button onClick={() => setIsChatOpen(false)} className="hover:rotate-90 transition-transform p-1 rounded-full"><X className="w-6 h-6" /></button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar bg-white/40">
-              <div className="bg-brand-parchment/50 p-5 rounded-[30px] rounded-tl-none border border-brand-parchment/60 shadow-sm">
-                <p className="text-sm text-brand-brown leading-relaxed font-bold tracking-tight italic">{t.chatIntro}</p>
-              </div>
-              {chatHistory.map((m, idx) => (
-                <div key={idx} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[88%] p-5 rounded-[30px] text-sm leading-relaxed shadow-sm ${m.role === 'user' ? 'bg-brand-red text-white rounded-tr-none font-medium' : 'bg-brand-parchment/50 text-brand-brown rounded-tl-none border border-brand-parchment/60 font-bold italic tracking-tight'}`}>
-                    {m.text}
-                  </div>
-                </div>
-              ))}
-              {isChatLoading && (
-                <div className="flex justify-start">
-                  <div className="bg-brand-parchment/50 p-4 rounded-[30px] rounded-tl-none border border-brand-parchment/60 flex gap-2 shadow-sm">
-                    <span className="w-2 h-2 bg-brand-parchment rounded-full animate-bounce"></span>
-                    <span className="w-2 h-2 bg-brand-parchment rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                    <span className="w-2 h-2 bg-brand-parchment rounded-full animate-bounce [animation-delay:0.4s]"></span>
-                  </div>
-                </div>
-              )}
-              <div ref={chatEndRef}></div>
-            </div>
-            <div className="p-5 bg-white border-t border-brand-parchment flex gap-3 items-center">
-              <div className="flex-1 relative">
-                <input 
-                  type="text" 
-                  placeholder={t.aiConciergePlaceholder} 
-                  className="w-full bg-brand-cream/60 border-2 border-transparent focus:border-brand-parchment/50 rounded-full px-6 py-4 text-sm outline-none font-bold text-brand-brown placeholder:text-brand-brown/30 shadow-inner"
-                  value={chatInput}
-                  onChange={e => setChatInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
-                />
-              </div>
-              <button 
-                onClick={handleSendMessage}
-                disabled={isChatLoading || !chatInput.trim()}
-                className="bg-stone-400 hover:bg-brand-brown text-white p-4 rounded-full disabled:bg-stone-300 disabled:cursor-not-allowed transition-all shadow-lg active:scale-90 flex-shrink-0"
-              >
-                <Send className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        )}
-        <button 
-          onClick={() => setIsChatOpen(!isChatOpen)}
-          className={`w-16 h-16 rounded-full shadow-3xl transition-all active:scale-90 border-4 flex items-center justify-center group pointer-events-auto ${isChatOpen ? 'bg-brand-cream border-brand-brown text-brand-brown rotate-90' : 'bg-brand-red border-white text-white hover:scale-110 shadow-brand-red/40'}`}
-        >
-          {isChatOpen ? <X size={28} /> : <MessageCircle size={32} className="group-hover:rotate-12 transition-transform" />}
-        </button>
-      </div>
 
     </div>
   );

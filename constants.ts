@@ -12,8 +12,14 @@ export const THEME_INFO = {
   bankAccount: "38900171282",
   accountName: "Sam Ai Sia",
   tngPhoneNumber: "+6017-9653871",
-  ownerEmail: "thewanderingspoon@outlook.com"
+  ownerEmail: "thewanderingspoon@outlook.com",
+  discountRate: 0.0,
+  heroImage: "https://images.unsplash.com/photo-1547517023-7ca0c162f816?q=80&w=1200&auto=format&fit=crop"
 };
+
+export const DEFAULT_HERO_IMAGE = "https://images.unsplash.com/photo-1547517023-7ca0c162f816?q=80&w=1200&auto=format&fit=crop";
+
+export const PLACEHOLDER_IMAGE = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=800&auto=format&fit=crop";
 
 export const MENU_ITEMS: MenuItem[] = [
   {
@@ -29,7 +35,11 @@ export const MENU_ITEMS: MenuItem[] = [
     image: 'https://images.unsplash.com/photo-1541518763669-27fef04b14ea?q=80&w=800&auto=format&fit=crop',
     maxInventory: 20,
     allergies: ['Soy', 'Gluten'],
-    allergiesZh: ['大豆', '麸质']
+    allergiesZh: ['大豆', '麸质'],
+    sideDishes: 'Fragrant Blue Pea Flower Rice, Nyonya Achar (Pickled Vegetables), Sambal Belacan',
+    sideDishesZh: '蓝花饭，娘惹阿查（腌菜），参巴辣椒',
+    story: 'This dish traces back to the 16th century Chinese immigrants in Malacca...',
+    storyZh: '这道菜追溯到16世纪马六甲的中国移民...'
   },
   {
     id: 'tue_udang_masak_lemak',
@@ -44,7 +54,11 @@ export const MENU_ITEMS: MenuItem[] = [
     image: 'https://images.unsplash.com/photo-1559847844-d9d2bc807d8c?q=80&w=800&auto=format&fit=crop',
     maxInventory: 15,
     allergies: ['Shellfish', 'Crustaceans'],
-    allergiesZh: ['贝类', '甲壳类']
+    allergiesZh: ['贝类', '甲壳类'],
+    sideDishes: 'Steamed Jasmine Rice, Stir-fried Kangkung Belacan, Fried Egg',
+    sideDishesZh: '茉莉香米饭，马来风光，荷包蛋',
+    story: 'This creamy coconut base combined with tangy pineapple represents the perfect balance of Peranakan flavors.',
+    storyZh: '这款浓郁的椰奶基底与酸甜黄梨相结合，完美的展现了土生华人的风味平衡。'
   },
   {
     id: 'wed_laksa',
@@ -59,7 +73,11 @@ export const MENU_ITEMS: MenuItem[] = [
     image: 'https://images.unsplash.com/photo-1715053228965-c32f83a45c61?q=80&w=800&auto=format&fit=crop',
     maxInventory: 25,
     allergies: ['Shellfish', 'Coconut', 'Egg'],
-    allergiesZh: ['贝类', '椰子', '鸡蛋']
+    allergiesZh: ['贝类', '椰子', '鸡蛋'],
+    sideDishes: 'Otak-otak (Grilled Fish Cake), Cucumber Slices, Hard Boiled Egg',
+    sideDishesZh: '乌达（烤鱼饼），黄瓜片，水煮蛋',
+    story: 'Likely the most famous Nyonya dish, our Laksa uses a unique blend of 15 different spices and aromatics.',
+    storyZh: '这可能是最著名的娘惹菜肴，我们的叻沙融合了15种不同的香料和香气。'
   },
   {
     id: 'thu_kari_kapitan',
@@ -74,7 +92,11 @@ export const MENU_ITEMS: MenuItem[] = [
     image: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?q=80&w=800&auto=format&fit=crop',
     maxInventory: 0, // Simulating Sold Out
     allergies: ['Nuts', 'Shrimp Paste'],
-    allergiesZh: ['坚果', '虾酱']
+    allergiesZh: ['坚果', '虾酱'],
+    sideDishes: 'Turmeric Glutinous Rice, Kari Sayur (Vegetable Curry), Pappadom',
+    sideDishesZh: '黄姜糯米饭，蔬菜咖喱，印度脆饼',
+    story: 'The "Captain\'s Curry" was created for British masters by their Nyonya cooks, blending local spices with Western tastes.',
+    storyZh: '“船长咖喱”是由娘惹厨师为英国主人创作的，将当地香料与西方口味融为一体。'
   },
   {
     id: 'fri_ikan_gerang_asam',
@@ -89,7 +111,11 @@ export const MENU_ITEMS: MenuItem[] = [
     image: 'https://images.unsplash.com/photo-1546241072-48010ad28c2c?q=80&w=800&auto=format&fit=crop',
     maxInventory: 10,
     allergies: ['Fish', 'Shrimp Paste'],
-    allergiesZh: ['鱼类', '虾酱']
+    allergiesZh: ['鱼类', '虾酱'],
+    sideDishes: 'Steamed White Rice, Sambal Petai with Prawns, Tempeh Chips',
+    sideDishesZh: '白米饭，参巴臭豆虾，天贝脆片',
+    story: 'A sour and spicy fish stew that uses tamarind and fresh herbs to create a refreshing yet deeply flavorful profile.',
+    storyZh: '一款酸辣鱼炖，使用罗望子和新鲜草药创造出清新而浓郁的风味。'
   }
 ];
 
@@ -150,7 +176,7 @@ export const TEXTS = {
     orderAgain: "Order Again",
     processing: "Verifying...",
     thankYou: "Order Confirmed!",
-    confirmationDesc: "You're on the list! Your pre-order has been successfully received.\nWe look forward to serving you this special menu on your chosen delivery day.",
+    confirmationDesc: "You're on the list! Your pre-order has been successfully received.\nWe look forward to serving you this special menu on your chosen delivery day.\nYour support means the world to us—thank you!",
     chefNote: "Chef's Note",
     nonHalal: "Non-Halal Kitchen",
     cutoff: "Last Order cut-off: 8 PM day before",
@@ -200,11 +226,14 @@ export const TEXTS = {
     reviewContact: "Contact Details",
     reviewDelivery: "Delivery To",
     reviewItems: "Order Summary",
-    reviewConfirm: "Proceed to Payment",
+    reviewConfirm: "Proceed to payment",
     editItems: "Edit Items",
     editDetails: "Edit Details",
-    verifyingTitle: "Verification in Progress",
-    verifyingDesc: "Your payment receipt has been sent to our chef for manual verification. This usually takes 5-10 minutes. Please keep this page open.",
+    verifyingTitle: "Verifying Payment...",
+    verifyingDesc: "Please wait while we check your receipt details, do not refresh the page until confirmation given.",
+    verificationFailed: "Verification Failed",
+    verificationSuccess: "Payment Verified!",
+    retry: "Retry Upload",
     verifyingStep1: "Order details compiled",
     verifyingStep2: "Receipt sent to owner",
     verifyingStep3: "Awaiting manual approval",
@@ -214,7 +243,11 @@ export const TEXTS = {
     emailLabel: "Email",
     inquiriesLabel: "For any inquiries, you may contact us at",
     orderClosed: "Order Closed",
-    notAvailable: "Coming Soon"
+    notAvailable: "Coming Soon",
+    paymentSelectPrompt: "Please select the payment method you actually used to ensure your receipt can be verified correctly.",
+    servedWith: "Served With",
+    promoDiscount: "10% OFF for 5 or more orders (mix & match).",
+    promoDelivery: "Opening Special: Free Delivery to Kuantan Town, IM, Semambu, Sekilau, Air Putih & Alor Akar."
   },
   [Language.ZH]: {
     addToCart: "加入订单",
@@ -255,7 +288,7 @@ export const TEXTS = {
     orderAgain: "再次订购",
     processing: "验证中...",
     thankYou: "订单已确认!",
-    confirmationDesc: "您已在预订名单中！您的预订已成功收到。\n我们期待在您选择的配送日为您奉上这份特别菜单。",
+    confirmationDesc: "您已在预订名单中！您的预订已成功收到。\n我们期待在您选择的配送日为您奉上这份特别菜单。\n您的支持对我们意义重大——谢谢！",
     chefNote: "主厨寄语",
     nonHalal: "非清真厨房",
     cutoff: "截止时间：前一天晚上8点",
@@ -308,8 +341,8 @@ export const TEXTS = {
     reviewConfirm: "去付款",
     editItems: "编辑餐点",
     editDetails: "编辑资料",
-    verifyingTitle: "订单核查中",
-    verifyingDesc: "您的付款收据已发送给主厨进行人工核实。这通常需要5-10 minutes。请保持此页面打开。",
+    verifyingTitle: "付款验证中...",
+    verifyingDesc: "请稍候，我们正在核对您的收据详情，在确认之前请勿刷新页面。",
     verifyingStep1: "订单详情已汇总",
     verifyingStep2: "收据已发送给店主",
     verifyingStep3: "等待人工审批",
@@ -319,6 +352,13 @@ export const TEXTS = {
     emailLabel: "邮箱",
     inquiriesLabel: "如有任何疑问，请联系我们",
     orderClosed: "订单已关闭",
-    notAvailable: "即将开始"
+    notAvailable: "即将开始",
+    paymentSelectPrompt: "请选择您实际使用的付款方式，以确保您的收据能够被正确验证。",
+    verificationFailed: "验证失败",
+    verificationSuccess: "付款已验证！",
+    retry: "重试上传",
+    servedWith: "搭配",
+    promoDiscount: "5份起订享 10% 折扣 (可自由搭配)",
+    promoDelivery: "开业特惠：免运费 (Kuantan Town, IM, Semambu, Sekilau, Air Putih, Alor Akar)"
   }
 };

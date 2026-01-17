@@ -18,6 +18,10 @@ export interface MenuItem {
   maxInventory: number;
   allergies?: string[];
   allergiesZh?: string[];
+  sideDishes?: string;
+  sideDishesZh?: string;
+  story?: string;
+  storyZh?: string;
 }
 
 export interface AddOn {
@@ -26,6 +30,7 @@ export interface AddOn {
   titleZh: string;
   price: number;
   type: 'drink' | 'fruit';
+  days?: string[];
 }
 
 export interface CustomerInfo {
@@ -40,10 +45,7 @@ export interface CustomerInfo {
   };
 }
 
-export interface ChatMessage {
-  role: 'user' | 'model';
-  text: string;
-}
+
 
 export enum AppStep {
   MENU = 'MENU',
