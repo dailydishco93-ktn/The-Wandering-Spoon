@@ -53,6 +53,7 @@ function checkOrderStatus(orderId) {
 }
 
 // Handle POST requests for submitting orders
+// Handle POST requests for submitting orders
 function doPost(e) {
   var lock = LockService.getScriptLock();
   lock.tryLock(10000);
@@ -65,27 +66,17 @@ function doPost(e) {
       sheet = doc.insertSheet('Orders');
       // Create headers if new sheet
       sheet.appendRow([
-        'Date',
-        'Order ID',
-        'Customer Name',
-        'Phone',
-        'Email',
-        'Address',
-        'Items',
-        'Total',
-        'Payment Method',
-        'Chef Note (EN)',
-        'Chef Note (ZH)',
-        'Coordinates',
-        'Receipt Image'
+        'Date', 'Order ID', 'Customer Name', 'Phone', 'Email', 'Address',
+        'Items', 'Total', 'Payment Method', 'Chef Note (EN)', 'Chef Note (ZH)',
+        'Coordinates', 'Receipt Image'
       ]);
     }
 
-    // Ensure header exists if sheet existed but column didn't
+    // Ensure headers exist
     var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     if (headers.indexOf('Receipt Image') === -1) {
       sheet.getRange(1, headers.length + 1).setValue('Receipt Image');
-      headers.push('Receipt Image'); // Update local headers array
+      headers.push('Receipt Image');
     }
     if (headers.indexOf('Status') === -1) {
       sheet.getRange(1, headers.length + 1).setValue('Status');
@@ -105,25 +96,18 @@ function doPost(e) {
       try {
         var folderName = "TWS Receipts";
         var folders = DriveApp.getFoldersByName(folderName);
-        var folder;
-
-        if (folders.hasNext()) {
-          folder = folders.next();
-        } else {
-          folder = DriveApp.createFolder(folderName);
-        }
+        var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
 
         var decoded = Utilities.base64Decode(data.receiptBase64);
         var blob = Utilities.newBlob(decoded, data.receiptMimeType, "receipt_" + data.orderId);
         var file = folder.createFile(blob);
-
-        // Ensure file is accessible if needed, but for internal use default permissions are usually fine
         receiptUrl = file.getUrl();
       } catch (err) {
         receiptUrl = "Error saving image: " + err.toString();
       }
     }
 
+    // Append the row
     sheet.appendRow([
       timestamp,
       data.orderId,
@@ -138,9 +122,50 @@ function doPost(e) {
       data.chefNote ? data.chefNote.zh : '',
       data.customer.coordinates ? `${data.customer.coordinates.lat}, ${data.customer.coordinates.lng}` : '',
       receiptUrl,
-      'Pending', // Default Status
-      data.itemsJson || '' // Items JSON
+      'Pending',
+      data.itemsJson || ''
     ]);
+
+    // ==========================================
+    // START: NEW EMAIL NOTIFICATION LOGIC
+    // ==========================================
+    try {
+      const recipientEmail = 'dailydishco93@gmail.com';
+      const subject = `[New Order] - Order ID: ${data.orderId}`;
+
+      const messageBody = `
+        <html>
+          <body>
+            <p>Hello The Wandering Spoon,</p>
+            <p>A new order has been received via the App.</p>
+            
+            <p><b>Order Details:</b></p>
+            <ul>
+              <li><b>Customer Name:</b> ${data.customer.name}</li>
+              <li><b>Total:</b> ${data.total}</li>
+              <li><b>Order ID:</b> ${data.orderId}</li>
+              <li><b>Payment Method:</b> ${data.paymentMethod}</li>
+            </ul>
+            
+            <p><a href="${doc.getUrl()}">Click here to view the Google Sheet</a></p>
+          </body>
+        </html>
+      `;
+
+      MailApp.sendEmail({
+        to: recipientEmail,
+        subject: subject,
+        htmlBody: messageBody
+      });
+      console.log("Email sent for Order ID: " + data.orderId);
+
+    } catch (emailError) {
+      // We log the error but do NOT stop the script, so the app still gets a 'success' response
+      console.log("Failed to send email: " + emailError.toString());
+    }
+    // ==========================================
+    // END: NEW EMAIL NOTIFICATION LOGIC
+    // ==========================================
 
     return ContentService.createTextOutput(JSON.stringify({ 'result': 'success', 'row': sheet.getLastRow() }))
       .setMimeType(ContentService.MimeType.JSON);
@@ -338,4 +363,113 @@ function debugPermissions() {
   var folder = DriveApp.createFolder("Temp_Debug_Permission_Test");
   console.log("Folder created: " + folder.getUrl());
   folder.setTrashed(true);
+}
+
+// ==========================================
+// TRIGGER FUNCTION: Send Email on Status Change
+// ==========================================
+function onOrderStatusChange(e) {
+  // 1. Safety Checks
+  if (!e || !e.range) return;
+
+  var sheet = e.range.getSheet();
+  if (sheet.getName() !== 'Orders') return;
+
+  // 2. Identify Columns dynamically
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var statusColIndex = headers.indexOf('Status') + 1;
+  var emailColIndex = headers.indexOf('Email') + 1;
+  var nameColIndex = headers.indexOf('Customer Name') + 1;
+  var orderIdColIndex = headers.indexOf('Order ID') + 1;
+  var totalColIndex = headers.indexOf('Total') + 1;
+
+  // 3. Check if the edited cell is in the "Status" column
+  if (e.range.getColumn() === statusColIndex && e.range.getRow() > 1) {
+
+    var newValue = e.value ? e.value.toString().toLowerCase() : '';
+
+    // Get row data common to both scenarios
+    var rowNumber = e.range.getRow();
+    var email = sheet.getRange(rowNumber, emailColIndex).getValue();
+    var customerName = sheet.getRange(rowNumber, nameColIndex).getValue();
+    var orderId = sheet.getRange(rowNumber, orderIdColIndex).getValue();
+    var total = sheet.getRange(rowNumber, totalColIndex).getValue();
+
+    if (email && email.includes('@')) {
+
+      // --- SCENARIO A: CONFIRMED ---
+      if (newValue === 'confirmed') {
+        try {
+          var subject = `Order Confirmed! - The Wandering Spoon (${orderId})`;
+          var body = `
+            <html>
+              <body style="font-family: Arial, sans-serif; color: #333;">
+                <h2 style="color: #4CAF50;">Payment Received & Order Confirmed</h2>
+                <p>Hi ${customerName},</p>
+                <p>Good news! We have verified your payment receipt and your order is now <b>Confirmed</b>.</p>
+                
+                <div style="border: 1px solid #ddd; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                  <p><b>Order ID:</b> ${orderId}</p>
+                  <p><b>Total Paid:</b> ${total}</p>
+                </div>
+
+                <p>We truly appreciate your order and can't wait to share these flavors with you.</p>
+                <br>
+                <p>Thank you,<br><b>The Wandering Spoon Team</b></p>
+              </body>
+            </html>
+          `;
+
+          MailApp.sendEmail({
+            to: email,
+            subject: subject,
+            htmlBody: body,
+            name: 'The Wandering Spoon'
+          });
+          SpreadsheetApp.getActiveSpreadsheet().toast('Confirmation email sent.', 'Success');
+        } catch (err) {
+          SpreadsheetApp.getActiveSpreadsheet().toast('Error sending email: ' + err.toString(), 'Error');
+        }
+      }
+
+      // --- SCENARIO B: REJECTED ---
+      else if (newValue === 'rejected') {
+        try {
+          var subject = `Issue with Order Payment - Daily Dish Co (${orderId})`;
+          var body = `
+            <html>
+              <body style="font-family: Arial, sans-serif; color: #333;">
+                <h2 style="color: #D32F2F;">Action Required: Payment Issue</h2>
+                <p>Hi ${customerName},</p>
+                <p>We reviewed your order <b>${orderId}</b>, but we could not verify the payment receipt.</p>
+                
+                <div style="background-color: #ffebee; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                  <p><b>Possible Reasons:</b></p>
+                  <ul>
+                    <li>The receipt image was blurry or unreadable.</li>
+                    <li>The amount did not match the order total (${total}).</li>
+                    <li>The transfer date/time was incorrect.</li>
+                  </ul>
+                </div>
+
+                <p><b>Please reply to this email</b> with a clear copy of the receipt or contact us via WhatsApp (+6017-9653871) to resolve this.</p>
+                <br>
+                <p>Best Regards,<br><b>The Wandering Spoon Team</b></p>
+              </body>
+            </html>
+          `;
+
+          MailApp.sendEmail({
+            to: email,
+            subject: subject,
+            htmlBody: body,
+            name: 'The Wandering Spoon'
+          });
+          SpreadsheetApp.getActiveSpreadsheet().toast('Rejection email sent.', 'Alert');
+        } catch (err) {
+          SpreadsheetApp.getActiveSpreadsheet().toast('Error sending email: ' + err.toString(), 'Error');
+        }
+      }
+    }
+  }
 }
