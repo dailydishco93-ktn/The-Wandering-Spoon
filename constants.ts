@@ -237,7 +237,7 @@ export const TEXTS = {
     verifyingStep1: "Order details compiled",
     verifyingStep2: "Receipt sent to owner",
     verifyingStep3: "Awaiting manual approval",
-    adminConfirm: "Admin: Confirm Payment (Simulated)",
+
     contactHeader: "Contact Information",
     whatsappLabel: "WhatsApp",
     emailLabel: "Email",
@@ -346,7 +346,7 @@ export const TEXTS = {
     verifyingStep1: "订单详情已汇总",
     verifyingStep2: "收据已发送给店主",
     verifyingStep3: "等待人工审批",
-    adminConfirm: "管理员：确认付款 (演示模拟)",
+
     contactHeader: "联系信息",
     whatsappLabel: "WhatsApp",
     emailLabel: "邮箱",

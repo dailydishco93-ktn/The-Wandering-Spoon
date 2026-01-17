@@ -47,7 +47,7 @@ import {
 import { Language, MenuItem, AppStep, CustomerInfo, AddOn } from './types';
 import { MENU_ITEMS as DEFAULT_MENU_ITEMS, ADD_ONS as DEFAULT_ADD_ONS, THEME_INFO as DEFAULT_THEME_INFO, TEXTS, PLACEHOLDER_IMAGE } from './constants';
 
-import { submitOrderToSheet, fetchMenuData } from './services/googleSheetsService';
+import { submitOrderToSheet, fetchMenuData, getOrderStatus } from './services/googleSheetsService';
 
 const DAY_ORDER: Record<string, number> = {
   'Monday': 0, '星期一': 0,
@@ -299,6 +299,25 @@ const App: React.FC = () => {
     }
     return () => clearInterval(timer);
   }, [step, timeLeft, lang, showCancelModal]);
+
+  // Polling for Order Status
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+
+    if (step === AppStep.VERIFYING && orderId) {
+      interval = setInterval(async () => {
+        const status = await getOrderStatus(orderId);
+        if (status === 'Confirmed') {
+          setStep(AppStep.CONFIRMATION);
+        } else if (status === 'Rejected') {
+          // Optionally handle rejection - for now we just stay on verifying or could add an error state
+          alert("Your order could not be verified. Please contact support.");
+        }
+      }, 5000); // Poll every 5 seconds
+    }
+
+    return () => clearInterval(interval);
+  }, [step, orderId]);
 
   const toggleLang = () => {
     setLang(prev => prev === Language.EN ? Language.ZH : Language.EN);
@@ -1958,19 +1977,7 @@ ${shareT.shareThanks}
               </div>
             </div>
 
-            {/* Manual Trigger for Verification (Simulated Admin Action) */}
-            <div className="pt-4 w-full">
-              <p className="text-[10px] uppercase tracking-widest text-stone-400 mb-3 font-bold border-b border-stone-100 pb-2">
-                Owner Control Panel (Simulation)
-              </p>
-              <button
-                onClick={() => setStep(AppStep.CONFIRMATION)}
-                className="w-full bg-stone-800 text-white py-3 rounded-lg font-bold text-sm hover:bg-black transition-all shadow-lg flex items-center justify-center gap-2 group"
-              >
-                <CheckCircle className="w-4 h-4 text-green-400 group-hover:scale-110 transition-transform" />
-                {t.adminConfirm}
-              </button>
-            </div>
+
           </div>
         </div>
       )}

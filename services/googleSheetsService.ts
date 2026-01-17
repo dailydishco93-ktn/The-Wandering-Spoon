@@ -72,3 +72,24 @@ export const fetchMenuData = async (): Promise<SheetMenuData | null> => {
         return null;
     }
 };
+
+export const getOrderStatus = async (orderId: string): Promise<string | null> => {
+    const SCRIPT_URL = import.meta.env.VITE_GOOGLE_SHEETS_SCRIPT_URL;
+
+    if (!SCRIPT_URL) {
+        return null;
+    }
+
+    try {
+        const response = await fetch(`${SCRIPT_URL}?orderId=${orderId}`);
+        if (!response.ok) {
+            return null;
+        }
+        const data = await response.json();
+        // Expecting { status: 'Confirmed' | 'Pending' | ... }
+        return data.status || null;
+    } catch (error) {
+        console.error("Failed to fetch order status", error);
+        return null;
+    }
+};
