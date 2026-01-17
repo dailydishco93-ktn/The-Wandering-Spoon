@@ -89,6 +89,11 @@ function doPost(e) {
     }
     if (headers.indexOf('Status') === -1) {
       sheet.getRange(1, headers.length + 1).setValue('Status');
+      headers.push('Status');
+    }
+    if (headers.indexOf('Items JSON') === -1) {
+      sheet.getRange(1, headers.length + 1).setValue('Items JSON');
+      headers.push('Items JSON');
     }
 
     var data = JSON.parse(e.postData.contents);
@@ -133,7 +138,8 @@ function doPost(e) {
       data.chefNote ? data.chefNote.zh : '',
       data.customer.coordinates ? `${data.customer.coordinates.lat}, ${data.customer.coordinates.lng}` : '',
       receiptUrl,
-      'Pending' // Default Status
+      'Pending', // Default Status
+      data.itemsJson || '' // Items JSON
     ]);
 
     return ContentService.createTextOutput(JSON.stringify({ 'result': 'success', 'row': sheet.getLastRow() }))
@@ -218,6 +224,40 @@ function getMenuData() {
     }
   }
 
+  // --- Inventory Calculation ---
+  var soldCounts = {};
+  var ordersSheet = doc.getSheetByName('Orders');
+  if (ordersSheet) {
+    var rawData = ordersSheet.getDataRange().getValues();
+    if (rawData.length > 1) {
+      var headers = rawData[0];
+      var statusIdx = headers.indexOf('Status');
+      var itemsJsonIdx = headers.indexOf('Items JSON');
+
+      if (statusIdx !== -1 && itemsJsonIdx !== -1) {
+        for (var k = 1; k < rawData.length; k++) {
+          var status = rawData[k][statusIdx];
+          var jsonStr = rawData[k][itemsJsonIdx];
+          // Count Pending and Confirmed (to reserve inventory)
+          if (status !== 'Rejected' && status !== 'Cancelled' && jsonStr) {
+            try {
+              var items = JSON.parse(jsonStr);
+              if (Array.isArray(items)) {
+                items.forEach(function (item) {
+                  if (item.id && item.q) {
+                    soldCounts[item.id] = (soldCounts[item.id] || 0) + Number(item.q);
+                  }
+                });
+              }
+            } catch (e) {
+              // ignore parse errors
+            }
+          }
+        }
+      }
+    }
+  }
+
   // --- Menu Items ---
   var menuSheet = doc.getSheetByName('Menu');
   if (!menuSheet) {
@@ -232,6 +272,10 @@ function getMenuData() {
   for (var i = 1; i < menuData.length; i++) {
     var row = menuData[i];
     if (row[0]) { // If Day exists
+      var maxInv = Number(row[9]);
+      var sold = soldCounts[row[2]] || 0;
+      var remaining = Math.max(0, maxInv - sold);
+
       menuItems.push({
         day: row[0],
         dayZh: row[1],
@@ -242,7 +286,7 @@ function getMenuData() {
         descriptionZh: row[6],
         price: Number(row[7]),
         image: getDirectImageLink(row[8]),
-        maxInventory: Number(row[9]),
+        maxInventory: remaining, // Use calculated remaining inventory
         allergies: row[10] ? row[10].split(',').map(function (s) { return s.trim(); }) : [],
         allergiesZh: row[11] ? row[11].split(',').map(function (s) { return s.trim(); }) : [],
         sideDishes: row[12] ? String(row[12]) : '',

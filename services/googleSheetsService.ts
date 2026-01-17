@@ -10,6 +10,7 @@ export interface OrderData {
     chefNote?: { en: string; zh: string };
     receiptBase64?: string;
     receiptMimeType?: string;
+    itemsJson: string;
 }
 
 export interface SheetMenuData {

@@ -704,11 +704,19 @@ ${shareT.shareThanks}
       console.error("Error converting receipt to base64", e);
     }
 
+    const itemsJson = getGroupedCart().flatMap(group =>
+      group.items.map(item => ({
+        id: item.id,
+        q: item.q
+      }))
+    );
+
     const orderData = {
       orderId: newOrderId,
       customer: customer,
       paymentMethod: paymentMethod,
       items: orderSummaryStr,
+      itemsJson: JSON.stringify(itemsJson),
       total: total,
       chefNote: null,
       receiptBase64: receiptBase64,
