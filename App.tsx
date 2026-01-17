@@ -45,7 +45,7 @@ import {
   BookOpen
 } from 'lucide-react';
 import { Language, MenuItem, AppStep, CustomerInfo, AddOn } from './types';
-import { MENU_ITEMS as DEFAULT_MENU_ITEMS, ADD_ONS as DEFAULT_ADD_ONS, THEME_INFO as DEFAULT_THEME_INFO, TEXTS, PLACEHOLDER_IMAGE, DAILY_DRINKS } from './constants';
+import { MENU_ITEMS as DEFAULT_MENU_ITEMS, ADD_ONS as DEFAULT_ADD_ONS, THEME_INFO as DEFAULT_THEME_INFO, TEXTS, PLACEHOLDER_IMAGE } from './constants';
 
 import { submitOrderToSheet, fetchMenuData, getOrderStatus } from './services/googleSheetsService';
 
@@ -353,32 +353,22 @@ const App: React.FC = () => {
       const addonId = parts[parts.length - 1];
       const itemId = parts.slice(0, -1).join('_');
 
-      const addon = addOns.find(a => String(a.id) === String(addonId));
       const parentItem = menuItems.find(m => String(m.id) === String(itemId));
 
+      // Find the specific addon variant that matches the parent item's day
+      // or fallback to generic addon if no specific day is set
+      const addon = addOns.find(a =>
+        String(a.id) === String(addonId) &&
+        (!a.days || a.days.length === 0 || (parentItem && a.days.includes(parentItem.day)))
+      );
+
       if (addon && parentItem) {
-        let addonTitle = lang === Language.EN ? addon.title : addon.titleZh;
-
-        // --- Special Handling for Daily Drinks ---
-        if (addon.id === 'drink') {
-          // Import DAILY_DRINKS inside component or assume it's available via import
-          // Since it's imported at top, we use it directly:
-          // We need to type cast or ensure key exists, parentItem.day is 'Monday' etc.
-          const dailyDrink = DAILY_DRINKS[parentItem.day as any];
-          if (dailyDrink) {
-            addonTitle = lang === Language.EN ? dailyDrink.title : dailyDrink.titleZh;
-          }
-        }
-
         return {
           ...addon,
           itemType: 'addon' as const,
           parentTitle: lang === Language.EN ? parentItem.title : parentItem.titleZh,
           parentDay: lang === Language.EN ? parentItem.day : parentItem.dayZh,
-          parentDayEn: parentItem.day,
-          // Override the title used for display
-          title: addonTitle, // This effectively overrides the addon.title for the result object
-          titleZh: addonTitle // Also override titleZh if we want consistency, though logic above handles selection
+          parentDayEn: parentItem.day
         };
       }
     }

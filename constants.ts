@@ -136,13 +136,7 @@ export const ADD_ONS: AddOn[] = [
   }
 ];
 
-export const DAILY_DRINKS: Record<string, { title: string; titleZh: string }> = {
-  'Monday': { title: 'Nutmeg & Calamansi with Sour Plum', titleZh: '酸梅桔子豆蔻水' },
-  'Tuesday': { title: 'Lemongrass & Pandan', titleZh: '香兰香茅水' },
-  'Wednesday': { title: 'Winter Melon & Longan', titleZh: '冬瓜龙眼水' },
-  'Thursday': { title: 'Barley & Candied Winter Melon', titleZh: '冬瓜薏米水' },
-  'Friday': { title: 'Luo Han Guo with Longan', titleZh: '罗汉果龙眼水' }
-};
+
 
 export const TEXTS = {
   [Language.EN]: {
