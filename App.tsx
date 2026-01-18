@@ -149,7 +149,11 @@ const App: React.FC = () => {
 
     // If it's Friday, Saturday or Sunday, we're in the pre-order period for the upcoming week.
     // (Since Friday's order cutoff was Thursday 8pm, 'Friday' here effectively means starting next week's cycle)
-    if (currentDay >= 5) return true;
+    if (currentDay >= 5) {
+      // Exception: If it's Sunday (7) and we're ordering for Monday (1), enforce 8 PM cutoff
+      if (currentDay === 7 && dayIndex === 1 && currentHour >= 20) return false;
+      return true;
+    }
 
     // Past days are unavailable
     if (currentDay > dayIndex) return false;
