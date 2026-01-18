@@ -42,7 +42,8 @@ import {
   CalendarCheck,
   Package,
   HandPlatter,
-  BookOpen
+  BookOpen,
+  FileText
 } from 'lucide-react';
 import { Language, MenuItem, AppStep, CustomerInfo, AddOn } from './types';
 import { MENU_ITEMS as DEFAULT_MENU_ITEMS, ADD_ONS as DEFAULT_ADD_ONS, THEME_INFO as DEFAULT_THEME_INFO, TEXTS, PLACEHOLDER_IMAGE } from './constants';
@@ -524,11 +525,21 @@ const App: React.FC = () => {
   const handleReceiptFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    openEditor(file);
+
+    if (file.type === 'application/pdf') {
+      // Directly set the file for PDF, skip editor
+      setReceiptFile(file);
+      const url = URL.createObjectURL(file);
+      if (receiptPreview) URL.revokeObjectURL(receiptPreview);
+      setReceiptPreview(url);
+    } else {
+      openEditor(file);
+    }
   };
 
   const handleEditReceipt = () => {
     if (!receiptFile) return;
+    if (receiptFile.type === 'application/pdf') return; // Cannot edit PDF
     openEditor(receiptFile);
   };
 
@@ -1902,14 +1913,22 @@ ${shareT.shareThanks}
               {receiptPreview && receiptFile ? (
                 <div className="border-2 border-[#0D9488]/30 rounded-[8px] p-4 flex items-center justify-between bg-[#F0FDFA]">
                   <div className="flex items-center gap-4">
-                    <img src={receiptPreview} alt="Receipt" className="w-12 h-12 object-cover rounded-md" />
+                    {receiptFile.type === 'application/pdf' ? (
+                      <div className="w-12 h-12 bg-red-100 rounded-md flex items-center justify-center text-red-600">
+                        <FileText className="w-6 h-6" />
+                      </div>
+                    ) : (
+                      <img src={receiptPreview} alt="Receipt" className="w-12 h-12 object-cover rounded-md" />
+                    )}
                     <div>
                       <p className="text-sm font-bold text-brand-brown truncate max-w-[150px]">{receiptFile.name}</p>
                       <p className="text-xs text-stone-400">{(receiptFile.size / 1024).toFixed(1)} KB</p>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={handleEditReceipt} className="p-2 text-stone-500 hover:bg-stone-200 rounded-full transition-colors"><Edit className="w-4 h-4" /></button>
+                    {receiptFile.type !== 'application/pdf' && (
+                      <button onClick={handleEditReceipt} className="p-2 text-stone-500 hover:bg-stone-200 rounded-full transition-colors"><Edit className="w-4 h-4" /></button>
+                    )}
                     <button onClick={clearReceipt} className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors"><X className="w-4 h-4" /></button>
                   </div>
                 </div>
@@ -1930,7 +1949,7 @@ ${shareT.shareThanks}
                     type="file"
                     id="receipt-upload"
                     className="hidden"
-                    accept="image/*"
+                    accept="image/*,application/pdf"
                     onChange={handleReceiptFileChange}
                   />
                 </div>
