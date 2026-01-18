@@ -14,12 +14,12 @@ export const THEME_INFO = {
   tngPhoneNumber: "+6017-9653871",
   ownerEmail: "thewanderingspoon@outlook.com",
   discountRate: 0.0,
-  heroImage: "https://images.unsplash.com/photo-1547517023-7ca0c162f816?q=80&w=1200&auto=format&fit=crop"
+  heroImage: ""
 };
 
-export const DEFAULT_HERO_IMAGE = "https://images.unsplash.com/photo-1547517023-7ca0c162f816?q=80&w=1200&auto=format&fit=crop";
+export const DEFAULT_HERO_IMAGE = "";
 
-export const PLACEHOLDER_IMAGE = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=800&auto=format&fit=crop";
+export const PLACEHOLDER_IMAGE = "";
 
 export const MENU_ITEMS: MenuItem[] = [
   {
@@ -32,7 +32,7 @@ export const MENU_ITEMS: MenuItem[] = [
     description: 'Slow-braised chicken with fermented soy bean paste and potatoes.',
     descriptionZh: '慢火焖制的豆酱马铃薯鸡肉。',
     price: 15.00,
-    image: 'https://images.unsplash.com/photo-1541518763669-27fef04b14ea?q=80&w=800&auto=format&fit=crop',
+    image: '',
     maxInventory: 20,
     allergies: ['Soy', 'Gluten'],
     allergiesZh: ['大豆', '麸质'],
@@ -51,7 +51,7 @@ export const MENU_ITEMS: MenuItem[] = [
     description: 'Prawns cooked in a rich coconut curry with tangy pineapple.',
     descriptionZh: '香浓椰浆咖喱配上酸甜黄梨和鲜虾。',
     price: 18.00,
-    image: 'https://images.unsplash.com/photo-1559847844-d9d2bc807d8c?q=80&w=800&auto=format&fit=crop',
+    image: '',
     maxInventory: 15,
     allergies: ['Shellfish', 'Crustaceans'],
     allergiesZh: ['贝类', '甲壳类'],
@@ -70,7 +70,7 @@ export const MENU_ITEMS: MenuItem[] = [
     description: 'Rice noodles in a rich and spicy coconut soup base.',
     descriptionZh: '香浓辛辣椰浆汤底配米粉。',
     price: 15.00,
-    image: 'https://images.unsplash.com/photo-1715053228965-c32f83a45c61?q=80&w=800&auto=format&fit=crop',
+    image: '',
     maxInventory: 25,
     allergies: ['Shellfish', 'Coconut', 'Egg'],
     allergiesZh: ['贝类', '椰子', '鸡蛋'],
@@ -89,7 +89,7 @@ export const MENU_ITEMS: MenuItem[] = [
     description: 'A drier, thicker version of chicken curry with kaffir lime leaves.',
     descriptionZh: '浓郁干咖喱鸡配疯柑叶。',
     price: 16.00,
-    image: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?q=80&w=800&auto=format&fit=crop',
+    image: '',
     maxInventory: 0, // Simulating Sold Out
     allergies: ['Nuts', 'Shrimp Paste'],
     allergiesZh: ['坚果', '虾酱'],
@@ -108,7 +108,7 @@ export const MENU_ITEMS: MenuItem[] = [
     description: 'Spicy and sour fish stew with tamarind and okra.',
     descriptionZh: '酸辣亚参鱼配羊角豆。',
     price: 18.00,
-    image: 'https://images.unsplash.com/photo-1546241072-48010ad28c2c?q=80&w=800&auto=format&fit=crop',
+    image: '',
     maxInventory: 10,
     allergies: ['Fish', 'Shrimp Paste'],
     allergiesZh: ['鱼类', '虾酱'],

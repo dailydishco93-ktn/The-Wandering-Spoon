@@ -65,7 +65,7 @@ const App: React.FC = () => {
   const [showIntro, setShowIntro] = useState(true);
 
   // Dynamic Data State
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(DEFAULT_MENU_ITEMS);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [addOns, setAddOns] = useState<AddOn[]>(DEFAULT_ADD_ONS);
   const [themeInfo, setThemeInfo] = useState(DEFAULT_THEME_INFO);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
@@ -243,7 +243,8 @@ const App: React.FC = () => {
               dayZh: fallbackDayZh,
               story,
               storyZh,
-              image: item.image || defaultItem?.image
+              storyZh,
+              image: item.image
             };
           });
           setMenuItems(enrichedItems);
@@ -1234,6 +1235,18 @@ ${shareT.shareThanks}
 
       {step === AppStep.MENU && (
         <>
+          {/* Loading Overlay */}
+          {!isDataLoaded && (
+            <div className="fixed inset-0 z-[60] bg-brand-cream flex flex-col items-center justify-center animate-in fade-in duration-500">
+              <div className="relative">
+                <div className="w-16 h-16 border-4 border-brand-parchment rounded-full"></div>
+                <div className="w-16 h-16 border-4 border-brand-red border-t-transparent rounded-full animate-spin absolute inset-0"></div>
+                <ChefHat className="absolute inset-0 m-auto text-brand-brown w-6 h-6 animate-pulse" />
+              </div>
+              <p className="mt-4 text-brand-brown font-serif font-bold animate-pulse">{t.storyLoading}</p>
+            </div>
+          )}
+
           <div className="relative h-48 md:h-56 w-full overflow-hidden">
             <img src={themeInfo.heroImage} alt="Hero" className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-brand-brown/95 via-brand-brown/40 to-transparent flex flex-col justify-end p-4 md:p-8">
@@ -1287,16 +1300,10 @@ ${shareT.shareThanks}
                       {/* Image Container - Mobile: Fixed Height Rectangle (Filled), Desktop: Fixed Width Squarish */}
                       <div className="w-full h-64 md:w-56 md:h-auto overflow-hidden relative flex-shrink-0 group-hover:brightness-110 transition-all">
                         <img
-                          src={item.image || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=800&auto=format&fit=crop"}
+                          src={item.image}
                           className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 hover:scale-105"
                           alt={item.title}
                           referrerPolicy="no-referrer"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            if (target.src !== "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=800&auto=format&fit=crop") {
-                              target.src = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=800&auto=format&fit=crop";
-                            }
-                          }}
                         />
                         {!available && (
                           <div className="absolute inset-0 bg-stone-900/40 flex items-center justify-center p-4">
