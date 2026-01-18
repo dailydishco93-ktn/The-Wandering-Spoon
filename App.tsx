@@ -62,7 +62,7 @@ const App: React.FC = () => {
   // Main State
   const [lang, setLang] = useState<Language>(Language.EN);
   const [step, setStep] = useState<AppStep>(AppStep.MENU);
-  const [showIntro, setShowIntro] = useState(true);
+  const [showIntro, setShowIntro] = useState(false);
 
   // Dynamic Data State
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
