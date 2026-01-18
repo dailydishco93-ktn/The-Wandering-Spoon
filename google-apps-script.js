@@ -382,25 +382,33 @@ function onOrderStatusChange(e) {
   var nameColIndex = headers.indexOf('Customer Name') + 1;
   var orderIdColIndex = headers.indexOf('Order ID') + 1;
   var totalColIndex = headers.indexOf('Total') + 1;
+  var itemsColIndex = headers.indexOf('Items') + 1; // <--- ADDED THIS
 
   // 3. Check if the edited cell is in the "Status" column
   if (e.range.getColumn() === statusColIndex && e.range.getRow() > 1) {
 
     var newValue = e.value ? e.value.toString().toLowerCase() : '';
 
-    // Get row data common to both scenarios
+    // 4. Get Row Data
     var rowNumber = e.range.getRow();
     var email = sheet.getRange(rowNumber, emailColIndex).getValue();
     var customerName = sheet.getRange(rowNumber, nameColIndex).getValue();
     var orderId = sheet.getRange(rowNumber, orderIdColIndex).getValue();
-    var total = sheet.getRange(rowNumber, totalColIndex).getValue();
+
+    // Get Items and format them for HTML (replace new lines with <br>)
+    var rawItems = sheet.getRange(rowNumber, itemsColIndex).getValue();
+    var itemsList = rawItems.toString().replace(/\n/g, '<br>');
+
+    // Force Total to 2 decimal places
+    var rawTotal = sheet.getRange(rowNumber, totalColIndex).getValue();
+    var total = Number(rawTotal).toFixed(2);
 
     if (email && email.includes('@')) {
 
       // --- SCENARIO A: CONFIRMED ---
       if (newValue === 'confirmed') {
         try {
-          var subject = `Order Confirmed! - The Wandering Spoon (${orderId})`;
+          var subject = `Order Confirmed! - the Wandering Spoon (${orderId})`;
           var body = `
             <html>
               <body style="font-family: Arial, sans-serif; color: #333;">
@@ -409,12 +417,16 @@ function onOrderStatusChange(e) {
                 <p>Good news! We have verified your payment receipt and your order is now <b>Confirmed</b>.</p>
                 <p>We will whatsapp you on the estimated delivery time on the day itself.</p>
 
-                <div style="border: 1px solid #ddd; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                <div style="border: 1px solid #ddd; padding: 15px; border-radius: 5px; margin: 20px 0; background-color: #f9f9f9;">
+                  <h3 style="margin-top:0;">Order Summary</h3>
                   <p><b>Order ID:</b> ${orderId}</p>
-                  <p><b>Total Paid:</b> ${total}</p>
+                  <hr style="border: 0; border-top: 1px solid #eee;">
+                  <p><b>Items:</b><br>${itemsList}</p>
+                  <hr style="border: 0; border-top: 1px solid #eee;">
+                  <p style="font-size: 1.1em;"><b>Total Paid: ${total}</b></p>
                 </div>
 
-                <p>We truly appreciate your order and can't wait to share these flavors with you.</p>
+                <p><p>We truly appreciate your order and can't wait to share these flavors with you.</p>
                 <br>
                 <p>Thank you,<br><b>The Wandering Spoon Team</b></p>
               </body>
@@ -436,7 +448,7 @@ function onOrderStatusChange(e) {
       // --- SCENARIO B: REJECTED ---
       else if (newValue === 'rejected') {
         try {
-          var subject = `Issue with Order Payment - Daily Dish Co (${orderId})`;
+          var subject = `Issue with Order Payment - The Wandering Spoon (${orderId})`;
           var body = `
             <html>
               <body style="font-family: Arial, sans-serif; color: #333;">
@@ -445,15 +457,18 @@ function onOrderStatusChange(e) {
                 <p>We reviewed your order <b>${orderId}</b>, but we could not verify the payment receipt.</p>
                 
                 <div style="background-color: #ffebee; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                  <p><b>Possible Reasons:</b></p>
+                  <p><b>Order Amount:</b> ${total}</p>
+                  <p><b>Items Ordered:</b><br>${itemsList}</p>
+                  <hr style="border: 0; border-top: 1px solid #ffcdd2;">
+                  <p><b>Possible Reasons for Rejection:</b></p>
                   <ul>
                     <li>The receipt image was blurry or unreadable.</li>
-                    <li>The amount did not match the order total (${total}).</li>
+                    <li>The amount paid did not match the total above.</li>
                     <li>The transfer date/time was incorrect.</li>
                   </ul>
                 </div>
 
-                <p><b>Please reply to this email</b> with a clear copy of the receipt or contact us via WhatsApp (+6017-9653871) to resolve this.</p>
+                <p><b>Please reply to this email</b> with a clear copy of the receipt or contact us via WhatsApp (+60179653871) to resolve this.</p>
                 <br>
                 <p>Best Regards,<br><b>The Wandering Spoon Team</b></p>
               </body>
