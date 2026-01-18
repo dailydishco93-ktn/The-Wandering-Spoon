@@ -407,7 +407,8 @@ function onOrderStatusChange(e) {
                 <h2 style="color: #4CAF50;">Payment Received & Order Confirmed</h2>
                 <p>Hi ${customerName},</p>
                 <p>Good news! We have verified your payment receipt and your order is now <b>Confirmed</b>.</p>
-                
+                <p>We will whatsapp you on the estimated delivery time on the day itself.</p>
+
                 <div style="border: 1px solid #ddd; padding: 15px; border-radius: 5px; margin: 20px 0;">
                   <p><b>Order ID:</b> ${orderId}</p>
                   <p><b>Total Paid:</b> ${total}</p>
