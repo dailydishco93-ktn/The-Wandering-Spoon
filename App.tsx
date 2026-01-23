@@ -247,7 +247,6 @@ const App: React.FC = () => {
               dayZh: fallbackDayZh,
               story,
               storyZh,
-              storyZh,
               image: item.image
             };
           });
