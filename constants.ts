@@ -2,9 +2,9 @@
 import { MenuItem, AddOn, Language } from './types';
 
 export const THEME_INFO = {
-  title: "Nyonya Heritage Tour",
-  titleZh: "娘惹文化之旅",
-  dateRange: "Jan 19 - Jan 23",
+  title: "Asia Tour",
+  titleZh: "亚洲之旅",
+  dateRange: "Jan 26 - Jan 30",
   cutoffTime: "8:00 PM",
   cutoffTimeZh: "晚上 8:00",
   isHalal: false,
@@ -13,7 +13,7 @@ export const THEME_INFO = {
   accountName: "Sam Ai Sia",
   tngPhoneNumber: "+6017-9653871",
   ownerEmail: "thewanderingspoon@outlook.com",
-  discountRate: 0.0,
+  discountRate: 0.1,
   heroImage: ""
 };
 
@@ -249,7 +249,7 @@ export const TEXTS = {
     paymentSelectPrompt: "Please select the payment method you actually used to ensure your receipt can be verified correctly.",
     servedWith: "Served With",
     promoDiscount: "10% OFF for 5 or more orders (mix & match).",
-    promoDelivery: "Opening Special: Free Delivery to Kuantan Town, IM, Semambu, Sekilau, Air Putih & Alor Akar."
+    promoDelivery: "Extended Opening Special: Free Delivery to Kuantan Town, IM, Semambu, Sekilau, Air Putih & Alor Akar."
   },
   [Language.ZH]: {
     addToCart: "加入订单",
