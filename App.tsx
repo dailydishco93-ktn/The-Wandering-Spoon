@@ -139,9 +139,7 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  if (isMaintenance) {
-    return <ChineseNewYearMaintenance />;
-  }
+
 
   // Dynamic Data State
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -347,6 +345,10 @@ const App: React.FC = () => {
     });
     setInventory(initialInv);
   }, [menuItems]);
+
+  if (isMaintenance) {
+    return <ChineseNewYearMaintenance />;
+  }
 
   // Cleanup receipt preview Object URLs
   useEffect(() => {
