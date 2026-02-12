@@ -346,9 +346,7 @@ const App: React.FC = () => {
     setInventory(initialInv);
   }, [menuItems]);
 
-  if (isMaintenance) {
-    return <ChineseNewYearMaintenance />;
-  }
+
 
   // Cleanup receipt preview Object URLs
   useEffect(() => {
@@ -842,6 +840,10 @@ ${shareT.shareThanks}
     const s = seconds % 60;
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
+
+  if (isMaintenance) {
+    return <ChineseNewYearMaintenance />;
+  }
 
   const renderHeader = () => (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md shadow-sm border-b border-brand-parchment">
