@@ -841,9 +841,7 @@ ${shareT.shareThanks}
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  if (isMaintenance) {
-    return <ChineseNewYearMaintenance />;
-  }
+
 
   const renderHeader = () => (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md shadow-sm border-b border-brand-parchment">
@@ -1257,6 +1255,10 @@ ${shareT.shareThanks}
       </div>
     );
   };
+
+  if (isMaintenance) {
+    return <ChineseNewYearMaintenance />;
+  }
 
   return (
     <div className="min-h-screen bg-brand-cream pb-12 text-stone-800">
