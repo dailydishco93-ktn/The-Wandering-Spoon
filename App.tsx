@@ -58,46 +58,37 @@ const DAY_ORDER: Record<string, number> = {
   'Friday': 4, '星期五': 4
 };
 
-const ChineseNewYearMaintenance: React.FC = () => {
+const MaintenanceScreen: React.FC = () => {
   return (
     <div className="min-h-screen bg-brand-parchment flex flex-col items-center justify-center p-4 relative overflow-hidden">
       {/* Decorative Background Elements */}
       <div className="fixed inset-0 pointer-events-none opacity-10">
-        <div className="absolute top-0 left-0 w-64 h-64 bg-red-500 rounded-full blur-3xl transform -translate-x-1/2 -translate-y-1/2"></div>
-        <div className="absolute bottom-0 right-0 w-64 h-64 bg-yellow-500 rounded-full blur-3xl transform translate-x-1/2 translate-y-1/2"></div>
-        <div className="absolute top-1/2 left-1/2 w-96 h-96 bg-red-400 rounded-full blur-3xl transform -translate-x-1/2 -translate-y-1/2 opacity-20"></div>
+        <div className="absolute top-0 left-0 w-64 h-64 bg-brand-green rounded-full blur-3xl transform -translate-x-1/2 -translate-y-1/2"></div>
+        <div className="absolute bottom-0 right-0 w-64 h-64 bg-brand-green rounded-full blur-3xl transform translate-x-1/2 translate-y-1/2"></div>
       </div>
 
-      <div className="max-w-lg w-full bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-8 border-2 border-red-100 text-center relative z-10 transition-all hover:shadow-2xl hover:scale-[1.01] duration-500">
+      <div className="max-w-lg w-full bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-8 border-2 border-brand-brown/10 text-center relative z-10 transition-all hover:shadow-2xl hover:scale-[1.01] duration-500">
         <div className="mb-6 flex justify-center">
-          <div className="w-24 h-24 bg-red-50 rounded-full flex items-center justify-center animate-bounce shadow-inner border border-red-100">
-            <PartyPopper className="w-12 h-12 text-red-600 drop-shadow-sm" />
+          <div className="w-24 h-24 bg-brand-green/10 rounded-full flex items-center justify-center animate-bounce shadow-inner border border-brand-green/20">
+            <Info className="w-12 h-12 text-brand-green drop-shadow-sm" />
           </div>
         </div>
 
-        <h1 className="font-pacifico text-4xl text-brand-red mb-6 drop-shadow-sm">Gong Xi Fa Cai!</h1>
+        <h1 className="font-pacifico text-4xl text-brand-green mb-6 drop-shadow-sm">Notice</h1>
 
         <div className="space-y-5 text-brand-brown font-medium leading-relaxed">
           <p className="text-xl">
-            We are taking a break from Chinese New Year Celebration.
+            The website order form will be deactivated until further notice.
           </p>
-          <div className="w-16 h-1 bg-red-200 mx-auto rounded-full my-4"></div>
+          <div className="w-16 h-1 bg-brand-green/20 mx-auto rounded-full my-4"></div>
           <p className="text-lg">
-            Stay Tuned for next menu reveal on <br />
-            <span className="font-bold text-red-600 text-xl block mt-1">28 February 2026</span>
-          </p>
-          <p className="text-lg">
-            We will resume serving you delicious meal from <br />
-            <span className="font-bold text-brand-green text-xl block mt-1">2 March 2026</span> instead.
+            Kindly stay tuned to the menu release announcement in the facebook page.
           </p>
         </div>
 
         <div className="mt-8 pt-6 border-t border-brand-parchment/60">
-          <p className="font-pacifico text-2xl text-brand-red">
-            Happy Chinese New Year!
-          </p>
-          <p className="text-sm text-brand-brown/60 mt-2 font-medium tracking-wide">
-            Wishing you a prosperous year ahead!
+          <p className="font-pacifico text-2xl text-brand-brown">
+            Thank you for your support.
           </p>
         </div>
       </div>
@@ -114,29 +105,11 @@ const App: React.FC = () => {
   const [lang, setLang] = useState<Language>(Language.EN);
   const [step, setStep] = useState<AppStep>(AppStep.MENU);
   const [showIntro, setShowIntro] = useState(false);
-  const [isMaintenance, setIsMaintenance] = useState(false);
+  const [isMaintenance, setIsMaintenance] = useState(true);
 
-  // Check for Chinese New Year Maintenance Mode
+  // Maintenance mode active until further notice
   useEffect(() => {
-    const checkMaintenance = () => {
-      const now = new Date();
-      // Month is 0-indexed (1 is February)
-      // Start: Feb 13, 2026 00:00:00
-      const start = new Date(2026, 1, 13, 0, 0, 0);
-      // End: Feb 27, 2026 23:59:59
-      const end = new Date(2026, 1, 27, 23, 59, 59);
-
-      if (now >= start && now <= end) {
-        setIsMaintenance(true);
-      } else {
-        setIsMaintenance(false);
-      }
-    };
-
-    checkMaintenance();
-    // Optional: Check every minute in case they leave the tab open across the boundary
-    const interval = setInterval(checkMaintenance, 60000);
-    return () => clearInterval(interval);
+    setIsMaintenance(true);
   }, []);
 
 
@@ -1257,7 +1230,7 @@ ${shareT.shareThanks}
   };
 
   if (isMaintenance) {
-    return <ChineseNewYearMaintenance />;
+    return <MaintenanceScreen />;
   }
 
   return (
